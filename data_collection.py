@@ -14,9 +14,20 @@ def is_cache_valid(filepath: str) -> bool:
     """
     Checks if a cached file exists and if it is fresh (less than 24 hours old).
     """
-    # TODO 1: Implement the cache validation check.
-    # Hint: You'll need os.path.exists() and os.path.getmtime().
-    pass
+    path = filepath
+    #checks for file existence
+    if not os.path.exists(path):
+        return False
+    #get the file age
+    file_creation_time = os.path.getmtime(path)
+    current_time = time.time()
+    file_age = current_time - file_creation_time
+    #main function logic
+    if file_age >= CACHE_EXPIRY_LIMIT:
+        return False
+    else:
+        return True
+    
 
 
 def fetch_company_financials(ticker: str) -> dict:
