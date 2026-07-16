@@ -31,7 +31,19 @@ def is_cache_valid(filepath: str) -> bool:
     else:
         return True
     
-
+def df_to_dict(df) -> dict:
+    """
+    Converts the financial Dataframe to a dictionary that is compatible with JSON serialization.
+    """
+    if df is None or df.empty:
+        return {}
+    
+    new_df = df.copy()
+    
+    new_df.columns = new_df.columns.astype(str)  # Ensure all column names are strings
+    
+    # Convert the DataFrame to a dictionary
+    return new_df.to_dict(orient='index')
 
 def fetch_company_financials(ticker: str) -> dict:
     """
@@ -52,15 +64,19 @@ def fetch_company_financials(ticker: str) -> dict:
     stock = yf.Ticker(ticker)
     
     try:
-        # TODO 2: Extract the Balance Sheet, Income Statement, and Cash Flow
-        # from the 'stock' object and convert them to dictionaries.
-        # Hint: Try stock.quarterly_balance_sheet, stock.quarterly_income_stmt, etc.
-        # Don't forget to convert them to dicts using .to_dict()!
+        df_balance = stock.quarterly_balance_sheet
+        df_income = stock.quarterly_income_stmt
+        df_cash_flow = stock.quarterly_cash_flow
         
+        #convert dv to dicts
+        balance = df_to_dict(df_balance)
+        income = df_to_dict(df_income)
+        cash_flow = df_to_dict(df_cash_flow)
+
         financial_data = {
-            "balance_sheet": {}, # <-- Put your extracted balance sheet dict here
-            "income_statement": {}, # <-- Put your extracted income statement dict here
-            "cash_flow": {} # <-- Put your extracted cash flow dict here
+            "balance_sheet": balance, # <-- Put your extracted balance sheet dict here
+            "income_statement": income, # <-- Put your extracted income statement dict here
+            "cash_flow": cash_flow # <-- Put your extracted cash flow dict here
         }
         
         # Save to cache for next time
@@ -79,6 +95,11 @@ if __name__ == "__main__":
     test_ticker = "AAPL"
     print(f"--- Testing Sentinel Ingestion Pipeline with {test_ticker} ---")
     
+    # Force delete old bad cache file if it exists so we can start fresh
+    cache_path = f"{CACHE_DIR}/{test_ticker.upper()}_financials.json"
+    if os.path.exists(cache_path):
+        os.remove(cache_path)
+        
     data = fetch_company_financials(test_ticker)
     
     # Check if we got data back
