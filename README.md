@@ -1,5 +1,5 @@
 # Investor-Assistant
-Helps pulls every bit of information from the internet that an investor need to fully understand a stock before they invest. Financial Statements, Public Sentiments (reddit, news, etc), Fundamental KPI. The purpose of this is to help investors, financial analyst to do their research faster without having to navigate through the internet manually and reading through all the financial reports.
+Helps pulls every bit of information from the internet that an investor need to fully understand a stock before they invest. Financial Statements, Public Sentiments (reddit, news, etc), Fundamental KPI. The purpose of this is to help investors, financial analyst to do their research faster without having to manually navigate through the internet to find the data your looking for. 
 
 # Features 
 1. Stock Storyline : Quick history of the business from it was first founded to recent big information to understand how the stock came to be.
