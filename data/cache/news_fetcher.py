@@ -4,7 +4,8 @@ import time
 import yfinance as yf
 
 # Define where our cache files will live
-CACHE_DIR = "data/cache"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CACHE_DIR = os.path.join(BASE_DIR, "data", "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 # Cache expiration limit: 24 hours (in seconds)
