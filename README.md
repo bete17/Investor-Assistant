@@ -22,3 +22,12 @@ Sentinel is built on a modular, decoupled architecture following clean software 
 [External Data APIs] ──► [Data Fetching & Caching] ──► [Analysis Engines] ──► [Presentation Layer]
 (yFinance / News API)    (data_fetcher.py + Cache)    (risk_engine.py /    (app.py - Streamlit)
                                                       sentiment_analyzer)
+
+# How To Start
+
+1. **Clone the repository**
+   Open your terminal and clone the project, then navigate into the project directory:
+   ```bash
+   git clone <paste-github-repo-url-here>
+   cd <repository-name>
+
