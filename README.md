@@ -25,7 +25,6 @@ Sentinel is built on a modular, decoupled architecture following clean software 
 ```
 
 # How To Start
-
 1. **Clone the repository**
    Open your terminal and clone the project, then navigate into the project directory:
    ```bash (cmd)
