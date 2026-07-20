@@ -22,6 +22,7 @@ Sentinel is built on a modular, decoupled architecture following clean software 
 [External Data APIs] ──► [Data Fetching & Caching] ──► [Analysis Engines] ──► [Presentation Layer]
 (yFinance / News API)    (data_fetcher.py + Cache)    (risk_engine.py /    (app.py - Streamlit)
                                                       sentiment_analyzer)
+```
 
 # How To Start
 
@@ -30,4 +31,15 @@ Sentinel is built on a modular, decoupled architecture following clean software 
    ```bash
    git clone <paste-github-repo-url-here>
    cd <repository-name>
+   ```
+2.**Create virtual environment**
+```bash
+   python -m venv venv
+   .\venv\Scripts\Activate.ps1
+   ```
+3.***Install packages***
+```bash
+   python -m pip install --upgrade pip
+   pip install -r requirements.txt
+```
 
