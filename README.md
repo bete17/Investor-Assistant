@@ -28,17 +28,18 @@ Sentinel is built on a modular, decoupled architecture following clean software 
 
 1. **Clone the repository**
    Open your terminal and clone the project, then navigate into the project directory:
-   ```bash
+   ```bash (cmd)
    git clone <paste-github-repo-url-here>
    cd <repository-name>
    ```
-2.**Create virtual environment**
-```bash
+2.***Create virtual environment***
+```bash (cmd)
    python -m venv venv
-   .\venv\Scripts\Activate.ps1
+   venv\Scripts\activate.bat
    ```
+***Note : You will know it worked when you see (venv) appear at the beginning of your terminal prompt.***
 3.***Install packages***
-```bash
+```bash (cmd)
    python -m pip install --upgrade pip
    pip install -r requirements.txt
 ```
