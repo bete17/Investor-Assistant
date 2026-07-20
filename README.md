@@ -22,3 +22,25 @@ Sentinel is built on a modular, decoupled architecture following clean software 
 [External Data APIs] ──► [Data Fetching & Caching] ──► [Analysis Engines] ──► [Presentation Layer]
 (yFinance / News API)    (data_fetcher.py + Cache)    (risk_engine.py /    (app.py - Streamlit)
                                                       sentiment_analyzer)
+```
+
+# How To Start
+1. **Clone the repository**
+   Open your terminal and clone the project, then navigate into the project directory:
+   ```bash (cmd)
+   git clone <paste-github-repo-url-here>
+   cd <repository-name>
+   ```
+2.***Create virtual environment***
+```bash (cmd)
+   python -m venv venv
+   venv\Scripts\activate.bat
+   ```
+***Note : You will know the virtual env is activated when you see (venv) appear at the beginning of your terminal prompt.***
+
+3.***Install packages***
+```bash (cmd)
+   python -m pip install --upgrade pip
+   pip install -r requirements.txt
+```
+
