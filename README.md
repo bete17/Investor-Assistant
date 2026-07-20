@@ -37,7 +37,8 @@ Sentinel is built on a modular, decoupled architecture following clean software 
    python -m venv venv
    venv\Scripts\activate.bat
    ```
-***Note : You will know it worked when you see (venv) appear at the beginning of your terminal prompt.***
+***Note : You will know the virtual env is activated when you see (venv) appear at the beginning of your terminal prompt.***
+
 3.***Install packages***
 ```bash (cmd)
    python -m pip install --upgrade pip
