@@ -1,7 +1,4 @@
-from data_collection import fetch_company_financials
-
-
-# Gets the latest available value for a specific financial metric
+from data.cache.financials_fetcher import fetch_company_financials# Gets the latest available value for a specific financial metric
 def get_latest_value(statement, metric):
     # Check if the metric exists
     if metric not in statement:
