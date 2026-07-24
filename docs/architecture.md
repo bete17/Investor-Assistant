@@ -18,7 +18,7 @@ graph TD
 
     User -- "answers a few questions,<br/>gets ticker suggestions,<br/>explores KPIs" --> App
     App -- "fetches financial statements<br/>and sector data" --> Yahoo
-    App -- "Requests API for 10-k" --> Yahoo
+    App -- "Requests API for 10-k" --> SEC-API
 ```
 
 ## 2. Containers
