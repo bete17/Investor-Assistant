@@ -135,22 +135,22 @@ _PERCENT_THRESHOLDS = [
 
 
 def get_status(value, metric):
-    """
-    Map a KPI value to a (label, css_class) pair.
-    General dashboard guidance only, not investment advice.
-    """
 
-    if value is None:
+    #Map a KPI value to a (label, css_class) pair
+
+
+    if value is None: # check if there's no number at all
         return "N/A", "neutral"
 
     # Net Profit Margin / ROE
-    if metric in ("profit_margin", "roe"):
+    if metric in ("profit_margin", "roe"): # check we're looking at the right kind of metric
 
         for minimum, label, css_class in _PERCENT_THRESHOLDS:
             if value >= minimum:
                 return label, css_class
 
         return "Negative", "negative"
+
 
     # Growth
     if metric == "growth":

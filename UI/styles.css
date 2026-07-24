@@ -12,6 +12,12 @@
    neutral    : #94a3b8
    ========================================================== */
 
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+.stApp {
+    background: #0f172a !important;
+}
+
 /* ---------- Background ---------- */
 
 .stApp {
@@ -20,10 +26,19 @@
 
 /* ---------- Hide Streamlit chrome ---------- */
 
+/* ---------- Hide Streamlit chrome ---------- */
+
 #MainMenu,
-footer,
-header {
+footer {
     visibility: hidden;
+}
+
+header {
+    background: transparent !important;
+}
+
+[data-testid="stDecoration"] {
+    display: none;
 }
 
 /* ---------- Base typography ---------- */
@@ -372,4 +387,43 @@ h3 {
 
 .dashboard-footer strong {
     color: #94a3b8;
+}
+
+/* ==========================================================
+   COMPARE STOCKS PAGE - additions
+   ========================================================== */
+
+.compare-col-header {
+    text-align: center;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #334155;
+    margin-bottom: 8px;
+}
+
+.compare-row-label {
+    font-size: 13.5px;
+    color: #cbd5e1;
+    padding: 10px 0;
+}
+
+.compare-row-value {
+    text-align: center;
+    font-size: 14px;
+    color: #94a3b8;
+    padding: 10px 0;
+    border-bottom: 1px solid #1e293b;
+}
+
+/* Highlights whichever of the two companies wins a given metric */
+.compare-row-value.compare-winner {
+    color: #22c55e;
+    font-weight: 700;
+}
+
+[data-testid="stAppDeployButton"] {
+    display: none;
 }
