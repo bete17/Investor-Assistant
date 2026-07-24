@@ -14,9 +14,11 @@ graph TD
     User["Beginner investor<br/>(no financial background)"]
     App["Investor Assistant"]
     Yahoo["Yahoo Finance<br/>(financial data source)"]
+    SEC API["10-k"]
 
     User -- "answers a few questions,<br/>gets ticker suggestions,<br/>explores KPIs" --> App
     App -- "fetches financial statements<br/>and sector data" --> Yahoo
+    App -- "Requests API for 10-k"
 ```
 
 ## 2. Containers
