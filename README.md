@@ -10,9 +10,13 @@ Helps pulls every bit of information from the internet that an investor need to 
 
 4. Risk Engine : Evaluate how risky the stock is and list out the things that makes it risky.
 
-5. Business Model Schema : A diagram that shows how the business is structured to understand the flow of the business
+5. Stock Recommendation : Based on the user preferences we will provide stocks that are good to invest
 
-6. A Chatbot : To go deeper into the finnacial reports an agent that can answers your questions about the financial statements.
+# ML Models
+
+There will be two models that will be used for this project. One that will summarize the Management's Discussion in the Annual Financial Report which will use both NLP to reduced texts and then an LLM to paraphrase. 
+
+The other one is for comparing stocks in the same industry by using similarity matching. 
 
 # 📂 System Architecture
 
