@@ -14,14 +14,37 @@ Helps pulls every bit of information from the internet that an investor need to 
 
 6. A Chatbot : To go deeper into the finnacial reports an agent that can answers your questions about the financial statements.
 
-# 📂 System Architecture & Data Flow
+# 📂 System Architecture
 
 Sentinel is built on a modular, decoupled architecture following clean software engineering principles:
 
 ```text
-[External Data APIs] ──► [Data Fetching & Caching] ──► [Analysis Engines] ──► [Presentation Layer]
-(yFinance / News API)    (data_fetcher.py + Cache)    (risk_engine.py /    (app.py - Streamlit)
-                                                      sentiment_analyzer)
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        TIER 3: PRESENTATION (UI)                        │
+│                           app.py (Streamlit)                            │
+│  ┌─────────────────────────┐ ┌───────────────────┐ ┌─────────────────┐  │
+│  │ Custom CSS (style.css)  │ │ Metric KPI Cards  │ │ Timeline Layout │  │
+│  └─────────────────────────┘ └───────────────────┘ └─────────────────┘  │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ (Data Requests)
+┌────────────────────────────────────▼────────────────────────────────────┐
+│                  TIER 2: ANALYTICAL ENGINE LAYER                        │
+│  ┌───────────────────────┐ ┌───────────────────┐ ┌───────────────────┐  │
+│  │ sentiment_analyzer.py │ │ risk_classifier.p │ │timeline_builder.p │  │
+│  │  (VADER News Pulse)   │ │  (ML Risk Model)  │ │(LLM 10-K Storyline│  │
+│  └───────────────────────┘ └───────────────────┘ └───────────────────┘  │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ (Cache Reads / API Calls)
+┌────────────────────────────────────▼────────────────────────────────────┐
+│              TIER 1: DATA INGESTION & LOCAL CACHING LAYER               │
+│  ┌───────────────────────┐ ┌───────────────────┐ ┌───────────────────┐  │
+│  │ financials_fetcher.py │ │  news_fetcher.py  │ │  sec_extractor.py │  │
+│  │   (yfinance API)      │ │   (yfinance/News) │ │  (edgartools API) │  │
+│  └───────────┬───────────┘ └─────────┬─────────┘ └─────────┬─────────┘  │
+│              └───────────────────────┼─────────────────────────┘        │
+│                                      ▼                                  │
+│                       Local File Cache (data/cache/*.json)               │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 # How To Start
