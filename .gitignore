@@ -219,4 +219,4 @@ __marimo__/
 
 #venv
 .venv/
-data/cache/.env
+data/cache/

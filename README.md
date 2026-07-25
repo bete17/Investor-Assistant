@@ -1,73 +1,61 @@
-# Investor-Assistant
-Helps pulls every bit of information from the internet that an investor need to fully understand a stock before they invest. Financial Statements, Public Sentiments (reddit, news, etc), Fundamental KPI. The purpose of this is to help investors, financial analyst to do their research faster without having to manually navigate through the internet to find the data your looking for. 
+# Investor Assistant
 
-# Features 
-1. Stock Storyline : Quick history of the business from it was first founded to recent big information to understand how the stock came to be.
+A dashboard that pulls a company's real financial data and turns it into
+something you can actually read — plain-language reads on profitability,
+growth, debt, and cash flow, plus a sector-aware health score.
 
-2. Key KPI's : Major indicators of the performance of the stock to show how a stock is doing.
+This is built for someone who wants to sanity-check a stock without
+knowing how to read a balance sheet. If you're a professional analyst
+you'll probably want something deeper — this is meant for a fast,
+honest first look, not a replacement for real research.
 
-3. Sentiments Analyzer : Analyze the public sentiment to understand what people think about the stock.
+## What it does right now
 
-4. Risk Engine : Evaluate how risky the stock is and list out the things that makes it risky.
+- **KPI Dashboard** — enter a ticker, get profitability, growth, debt,
+  and liquidity metrics translated into plain labels (Strong / Healthy
+  / Elevated / etc.), plus quarterly revenue and net income charts.
+- **Sector-aware Health Score** — a single 0-100 score combining the
+  KPIs above, normalized against ranges specific to that company's
+  sector, so a bank and a software company aren't graded the same way.
+- **Compare Stocks** — put two companies side by side.
 
-5. Stock Recommendation : Based on the user preferences we will provide stocks that are good to invest
+## Planned, not built yet
 
-# ML Models
+- A guided flow for people with no ticker in mind ("I don't know where
+  to start")
+- A watchlist
+- Possibly: peer similarity/clustering, an AI chat layer grounded in
+  the KPI data
 
-There will be two models that will be used for this project. One that will summarize the Management's Discussion in the Annual Financial Report which will use both NLP to reduced texts and then an LLM to paraphrase. 
+Listing these here so it's clear what's real vs. an idea on the roadmap.
 
-The other one is for comparing stocks in the same industry by using similarity matching. 
+## Data source
 
-# 📂 System Architecture
+Financial data comes from Yahoo Finance via `yfinance`. Sector
+normalization ranges are informed by Aswath Damodaran's NYU Stern
+industry dataset — see `sector_profiles.py` for specifics and known
+limitations.
 
-Sentinel is built on a modular, decoupled architecture following clean software engineering principles:
+## Architecture
 
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        TIER 3: PRESENTATION (UI)                        │
-│                           app.py (Streamlit)                            │
-│  ┌─────────────────────────┐ ┌───────────────────┐ ┌─────────────────┐  │
-│  │ Custom CSS (style.css)  │ │ Metric KPI Cards  │ │ Timeline Layout │  │
-│  └─────────────────────────┘ └───────────────────┘ └─────────────────┘  │
-└────────────────────────────────────┬────────────────────────────────────┘
-                                     │ (Data Requests)
-┌────────────────────────────────────▼────────────────────────────────────┐
-│                  TIER 2: ANALYTICAL ENGINE LAYER                        │
-│  ┌───────────────────────┐ ┌───────────────────┐ ┌───────────────────┐  │
-│  │ sentiment_analyzer.py │ │ risk_classifier.p │ │timeline_builder.p │  │
-│  │  (VADER News Pulse)   │ │  (ML Risk Model)  │ │(LLM 10-K Storyline│  │
-│  └───────────────────────┘ └───────────────────┘ └───────────────────┘  │
-└────────────────────────────────────┬────────────────────────────────────┘
-                                     │ (Cache Reads / API Calls)
-┌────────────────────────────────────▼────────────────────────────────────┐
-│              TIER 1: DATA INGESTION & LOCAL CACHING LAYER               │
-│  ┌───────────────────────┐ ┌───────────────────┐ ┌───────────────────┐  │
-│  │ financials_fetcher.py │ │  news_fetcher.py  │ │  sec_extractor.py │  │
-│  │   (yfinance API)      │ │   (yfinance/News) │ │  (edgartools API) │  │
-│  └───────────┬───────────┘ └─────────┬─────────┘ └─────────┬─────────┘  │
-│              └───────────────────────┼─────────────────────────┘        │
-│                                      ▼                                  │
-│                       Local File Cache (data/cache/*.json)               │
-└─────────────────────────────────────────────────────────────────────────┘
+See `docs/architecture.md` for a system context and container diagram.
+
+## Getting started
+
+This project uses [uv](https://astral.sh/uv) for dependency management.
+
+```bash
+git clone <repo-url>
+cd Investor-Assistant
+uv sync
 ```
 
-# How To Start
-1. **Clone the repository**
-   Open your terminal and clone the project, then navigate into the project directory:
-   ```bash (cmd)
-   git clone <paste-github-repo-url-here>
-   cd <repository-name>
-   ```
-2.***Create virtual environment***
-```bash (cmd)
-   python -m venv venv
-   venv\Scripts\activate.bat
-   ```
-***Note : You will know the virtual env is activated when you see (venv) appear at the beginning of your terminal prompt.***
-
-3.***Install packages***
-```bash (cmd)
-   python -m pip install --upgrade pip
-   pip install -r requirements.txt
+Run the app:
+```bash
+uv run streamlit run UI/kpi_dashboard.py
 ```
 
+Run the tests:
+```bash
+uv run pytest tests/ -v
+```
