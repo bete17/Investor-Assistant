@@ -1,14 +1,6 @@
 # ==========================================================
 # SECTOR LOOKUP
 # ==========================================================
-# NOTE: this assumes your project already uses yfinance somewhere
-# (the "Yahoo Finance" mentions in your KPI reference section
-# suggested this) since it's the free/no-API-key way to get a
-# ticker's sector. If your data actually comes from a different
-# provider, swap the implementation of get_sector() below to use
-# that provider's sector field instead - the rest of the app only
-# depends on this function returning a string like "Technology" or
-# None, not on HOW it gets it.
 
 try:
     import yfinance as yf
