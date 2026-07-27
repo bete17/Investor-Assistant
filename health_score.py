@@ -18,11 +18,6 @@
 # "Technology") to calculate_health_score() to use that sector's
 # ranges; omit it (or pass an unrecognized sector) to fall back to
 # the general-purpose default ranges.
-#
-# This is a simple weighted scoring model, not a machine learning
-# model - the "intelligence" is in choosing sensible ranges and
-# weights, not in fitting anything to data. That keeps it fully
-# transparent and easy to explain to a user.
 
 from sector_profiles import get_ranges_for_sector
 
@@ -30,11 +25,7 @@ from sector_profiles import get_ranges_for_sector
 # ----------------------------------------------------------
 # CONFIG: weight + direction per metric
 # ----------------------------------------------------------
-# These stay the same across all sectors - only the min/max
-# normalization RANGE (looked up per-sector above) changes.
-#
-#   weight  - how much this metric contributes to the total score
-#   invert  - True if LOWER raw values are better (e.g. debt)
+# These stay the same across all sectors
 
 _METRIC_WEIGHTS = {
     "net_profit_margin": (0.20, False),
@@ -46,8 +37,7 @@ _METRIC_WEIGHTS = {
 }
 
 # Free cash flow is handled separately since it's a dollar amount,
-# not a percent/ratio with a sensible fixed range - we only score
-# whether it's positive or negative, regardless of sector.
+
 _FREE_CASH_FLOW_WEIGHT = 0.05
 
 
@@ -68,19 +58,10 @@ def _normalize(value, minimum, maximum, invert):
 
 def calculate_health_score(kpis, sector=None):
     """
+
     Combine a company's KPIs into one weighted 0-100 score, scored
     against ranges appropriate to its sector.
 
-    Args:
-        kpis   - dict of KPI values, as returned by calculate_kpis()
-        sector - sector name (e.g. "Technology"), or None to use
-                 general-purpose default ranges
-
-    Returns (score, breakdown):
-        score     - overall 0-100 score, or None if no KPIs were available
-        breakdown - list of dicts, one per metric, for showing the
-                    detail behind the score (used by the radar chart
-                    and comparison table)
     """
 
     ranges = get_ranges_for_sector(sector)
@@ -108,8 +89,7 @@ def calculate_health_score(kpis, sector=None):
         weighted_total += normalized * weight
         weight_used += weight
 
-    # Free cash flow: simple positive/negative scoring, unaffected
-    # by sector.
+    # Free cash flow: simple positive/negative scoring, unaffected by sector.
     free_cash_flow = kpis.get("free_cash_flow")
 
     if free_cash_flow is not None:

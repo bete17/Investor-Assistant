@@ -40,12 +40,7 @@ from sector_lookup import get_sector
 
 # Note: this file does NOT import from kpi_dashboard.py, even
 # though it duplicates load_kpis() below. Importing kpi_dashboard.py
-# would re-run its entire top-to-bottom Streamlit page (it's a
-# script, not just a library of functions), which would render the
-# single-ticker dashboard's UI on top of this page. Small
-# duplication here is the price of keeping the two pages
-# independent - if this grows, it'd be worth pulling shared pieces
-# like load_kpis() into a separate shared module both pages import.
+# would re-run its entire top-to-bottom Streamlit page
 
 
 # ==========================================================
