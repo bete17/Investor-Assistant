@@ -1,11 +1,12 @@
 import difflib
 import json
 import os
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from data.storyline_fetcher import fetch_item7, item7_cache_path
+from data.storyline_fetcher import CACHE_DIR, fetch_item7, item7_cache_path
 
 load_dotenv()
 
@@ -150,10 +151,43 @@ def summarize_text(text: str) -> str:
     summary = response.choices[0].message.content
     return summary.strip() if summary else ""
 
+
+def summary_cache_path(ticker: str, year: int) -> str:
+    return os.path.join(CACHE_DIR, f"{ticker.upper()}_item7_summary_{year}.json")
+
+
+def load_summary_cache(ticker: str, year: int) -> dict | None:
+    """Load a cached Item 7 summary for a ticker and year."""
+    path = summary_cache_path(ticker, year)
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as cache_file:
+        return json.load(cache_file)
+
+
 def save_summary(ticker: str, year: int, summary: str) -> dict:
-    """Save the summary to the cache"""
-    return {
-        "ticker": ticker,
+    """Save an Item 7 summary to the local cache."""
+    payload = {
+        "ticker": ticker.upper(),
         "year": year,
         "summary": summary,
+        "summarized_at": datetime.now(timezone.utc).isoformat(),
     }
+    with open(summary_cache_path(ticker, year), "w", encoding="utf-8") as cache_file:
+        json.dump(payload, cache_file, default=str)
+    return payload
+
+
+def summarize_item7(ticker: str, year: int, force_refresh: bool = False) -> dict | None:
+    """Load Item 7, diff against the prior year when available, and return an LLM summary."""
+    if not force_refresh:
+        cached = load_summary_cache(ticker, year)
+        if cached is not None:
+            return cached
+
+    text = reduce_text(ticker, year)
+    if text is None:
+        return None
+
+    summary = summarize_text(text)
+    return save_summary(ticker, year, summary)
