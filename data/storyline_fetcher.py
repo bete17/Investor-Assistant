@@ -1,4 +1,7 @@
+import json
+import os
 import re
+from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup, NavigableString, Tag
 from edgar import Company
@@ -60,14 +63,16 @@ def _find_item7_start(soup: BeautifulSoup) -> Tag | None:
 
         block = _get_block_element(text_node.parent)
         block_text = block.get_text(" ", strip=True)
+        # when there is a match
         if ITEM7_HEADER.match(block_text) or ITEM7_HEADER_LOOSE.match(block_text):
             return block
-
+    # if no match
     return None
 
 
 def _find_item7_end(start_el: Tag) -> Tag | None:
     """Find where Item 7 ends (Item 7A or Item 8), ignoring table content."""
+    # loop through the next elements from the start of item 7
     for el in start_el.next_elements:
         if isinstance(el, NavigableString) and _is_inside_table(el):
             continue
@@ -91,18 +96,48 @@ def _find_item7_end(start_el: Tag) -> Tag | None:
     return None
 
 
-def _extract_section_text(start_el: Tag, end_el: Tag | None) -> str:
-    """Extract Item 7 text. Tables inside the section are kept; TOC tables are not."""
-    parts = []
+def _table_to_rows(table: Tag) -> tuple[list[str], list[list[str]]]:
+    rows = []
+    for tr in table.find_all("tr"):
+        cells = [
+            _normalize_text(cell.get_text(" ", strip=True))
+            for cell in tr.find_all(["th", "td"])
+        ]
+        if any(cells):
+            rows.append(cells)
+
+    if not rows:
+        return [], []
+
+    width = max(len(row) for row in rows)
+    rows = [row + [""] * (width - len(row)) for row in rows]
+    headers = rows[0]
+    body = rows[1:] if len(rows) > 1 else []
+    return headers, body
+
+
+def _extract_section_blocks(start_el: Tag, end_el: Tag | None) -> list[dict]:
+    """Extract Item 7 as ordered paragraph and table blocks."""
+    blocks = []
     seen_blocks = {id(start_el)}
     seen_tables = set()
 
-    def add_part(text: str):
-        text = re.sub(r"[ \t]+", " ", text).strip()
+    def add_paragraph(text: str):
+        text = _normalize_text(text)
         if text:
-            parts.append(text)
+            blocks.append({"type": "paragraph", "text": text})
 
-    add_part(start_el.get_text(" ", strip=True))
+    def add_table(table: Tag):
+        headers, rows = _table_to_rows(table)
+        if headers or rows:
+            blocks.append({"type": "table", "headers": headers, "rows": rows})
+            return
+
+        fallback = _normalize_text(table.get_text("\n", strip=True))
+        if fallback:
+            add_paragraph(fallback)
+
+    add_paragraph(start_el.get_text(" ", strip=True))
 
     for el in start_el.next_elements:
         if _at_or_past_end(el, end_el):
@@ -112,7 +147,7 @@ def _extract_section_text(start_el: Tag, end_el: Tag | None) -> str:
             table_id = id(el)
             if table_id not in seen_tables:
                 seen_tables.add(table_id)
-                add_part(el.get_text("\n", strip=True))
+                add_table(el)
             continue
 
         if isinstance(el, NavigableString):
@@ -126,13 +161,13 @@ def _extract_section_text(start_el: Tag, end_el: Tag | None) -> str:
                 continue
 
             seen_blocks.add(id(block))
-            add_part(block.get_text(" ", strip=True))
+            add_paragraph(block.get_text(" ", strip=True))
 
-    return "\n\n".join(parts)
+    return blocks
 
 
-def get_item7_text(tenK) -> str | None:
-    """Get the text of Item 7 (MD&A) in the 10-K, skipping table-of-contents tables."""
+def get_item7_blocks(tenK) -> list[dict] | None:
+    """Extract Item 7 (MD&A) as structured blocks from a 10-K filing."""
     soup = BeautifulSoup(tenK.html(), "html.parser")
 
     start_el = _find_item7_start(soup)
@@ -140,12 +175,35 @@ def get_item7_text(tenK) -> str | None:
         return None
 
     end_el = _find_item7_end(start_el)
-    return _extract_section_text(start_el, end_el)
+    return _extract_section_blocks(start_el, end_el)
 
 
-def upload_items(filepath: str):
-    """Upload the items to cache
-    Args:
-        file_path (str): path to the file containing the items
-    """
-    pass
+def item7_cache_path(ticker: str, year: int) -> str:
+    return os.path.join(CACHE_DIR, f"{ticker.upper()}_item7_{year}.json")
+
+
+def save_item7_cache(ticker: str, year: int, filing_date: str, blocks: list[dict]) -> dict:
+    """Write extracted Item 7 blocks to the local cache."""
+    payload = {
+        "ticker": ticker.upper(),
+        "year": year,
+        "filing_date": filing_date,
+        "extracted_at": datetime.now(timezone.utc).isoformat(),
+        "blocks": blocks,
+    }
+    with open(item7_cache_path(ticker, year), "w", encoding="utf-8") as cache_file:
+        json.dump(payload, cache_file, default=str)
+    return payload
+
+
+def fetch_item7(ticker: str, year: int) -> dict | None:
+    """Fetch a 10-K from SEC, extract Item 7 blocks, and save them to cache."""
+    filing = get_tenK_filing(ticker, year)
+    if filing is None:
+        return None
+
+    blocks = get_item7_blocks(filing)
+    if blocks is None:
+        return None
+
+    return save_item7_cache(ticker, year, _filing_date(filing), blocks)
