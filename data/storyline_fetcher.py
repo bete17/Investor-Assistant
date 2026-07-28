@@ -6,10 +6,6 @@ from datetime import datetime, timezone
 from bs4 import BeautifulSoup, NavigableString, Tag
 from edgar import Company
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CACHE_DIR = os.path.join(BASE_DIR, "data", "cache")
-os.makedirs(CACHE_DIR, exist_ok=True)
-
 ITEM7_HEADER = re.compile(
     r"^\s*item\s*7[\.\:\-\s].*(?:management|discussion|analysis|md\s*&\s*a|financial\s+condition|results\s+of\s+operations)",
     re.I,
@@ -23,34 +19,15 @@ INLINE_TAGS = {"span", "a", "b", "strong", "i", "em", "font", "u"}
 
 
 def get_tenK(ticker: str, year: int):
-    """Fetch 10-K filings for a ticker and year."""
+    """Fetch the 10-k
+
+    Args:
+        ticker (str): company's ticker
+        date (str): date of the 10-k filing
+    """
     company = Company(ticker)
+
     return company.get_filings(year=year, form="10-K")
-
-
-def get_tenK_filing(ticker: str, year: int):
-    """Return the first 10-K filing for a ticker and year, if one exists."""
-    filings = get_tenK(ticker, year)
-    if filings is None:
-        return None
-    try:
-        if len(filings) == 0:
-            return None
-    except TypeError:
-        return filings
-    return filings[0]
-
-
-def _filing_date(filing) -> str:
-    for attr in ("filing_date", "period_of_report", "report_date"):
-        value = getattr(filing, attr, None)
-        if value is not None:
-            return str(value)
-    return ""
-
-
-def _normalize_text(text: str) -> str:
-    return re.sub(r"[ \t]+", " ", text).strip()
 
 
 def _is_inside_table(node) -> bool:
