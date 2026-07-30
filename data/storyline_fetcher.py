@@ -1,10 +1,19 @@
+"""
+Fetch SEC 10-K filings, extract Item 7 (MD&A), and cache structured blocks locally.
+
+See tests/test_storyline_fetcher.py for the behaviors this module must support.
+"""
+
 import json
 import os
 import re
 from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup, NavigableString, Tag
-from edgar import Company
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CACHE_DIR = os.path.join(BASE_DIR, "data", "cache")
+os.makedirs(CACHE_DIR, exist_ok=True)
 
 ITEM7_HEADER = re.compile(
     r"^\s*item\s*7[\.\:\-\s].*(?:management|discussion|analysis|md\s*&\s*a|financial\s+condition|results\s+of\s+operations)",
@@ -18,25 +27,88 @@ BLOCK_TAGS = {"p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th"}
 INLINE_TAGS = {"span", "a", "b", "strong", "i", "em", "font", "u"}
 
 
-def get_tenK(ticker: str, year: int):
-    """Fetch the 10-k
-
-    Args:
-        ticker (str): company's ticker
-        date (str): date of the 10-k filing
+def get_tenK_filing(ticker: str, year: int):
     """
-    company = Company(ticker)
+    Fetch the 10-K filing for a ticker and fiscal year from the SEC API.
 
-    return company.get_filings(year=year, form="10-K")
+    Returns:
+        The edgartools filing object for that year's 10-K, or None if not found.
+    """
+    from edgar import Company
+
+    company = Company(ticker)
+    filings = company.get_filings(year=year, form="10-K")
+    if not filings:
+        return None
+    return filings.latest()
+
+
+def get_item7_blocks(tenK) -> list[dict] | None:
+    """
+    Extract Item 7 (MD&A) from a 10-K filing as ordered structured blocks.
+
+    Each block is a dict with ``type`` of ``"paragraph"`` or ``"table"``.
+    """
+    soup = BeautifulSoup(tenK.html(), "html.parser")
+
+    start_el = _find_item7_start(soup)
+    if start_el is None:
+        return None
+
+    end_el = _find_item7_end(start_el)
+    return _extract_section_blocks(start_el, end_el)
+
+
+def item7_cache_path(ticker: str, year: int) -> str:
+    """Return the local cache file path for a ticker's Item 7 blocks."""
+    return os.path.join(CACHE_DIR, f"{ticker.upper()}_item7_{year}.json")
+
+
+def save_item7_cache(ticker: str, year: int, filing_date: str, blocks: list[dict]) -> dict:
+    """Write extracted Item 7 blocks to the local cache."""
+    payload = {
+        "ticker": ticker.upper(),
+        "year": year,
+        "filing_date": filing_date,
+        "extracted_at": datetime.now(timezone.utc).isoformat(),
+        "blocks": blocks,
+    }
+    with open(item7_cache_path(ticker, year), "w", encoding="utf-8") as cache_file:
+        json.dump(payload, cache_file, default=str)
+    return payload
+
+
+def fetch_item7(ticker: str, year: int) -> dict | None:
+    """Fetch a 10-K from the SEC, extract Item 7 blocks, and save them to cache."""
+    filing = get_tenK_filing(ticker, year)
+    if filing is None:
+        return None
+
+    blocks = get_item7_blocks(filing)
+    if blocks is None:
+        return None
+
+    return save_item7_cache(ticker, year, _filing_date(filing), blocks)
+
+
+def _filing_date(filing) -> str:
+    """Return the filing date string from an edgartools filing object."""
+    filing_date = getattr(filing, "filing_date", None)
+    return str(filing_date) if filing_date is not None else ""
+
+
+def _normalize_text(text: str) -> str:
+    """Collapse whitespace and strip surrounding space from extracted text."""
+    return re.sub(r"[ \t]+", " ", text).strip()
 
 
 def _is_inside_table(node) -> bool:
-    """Check if the node is inside a table"""
+    """Return True if the node sits inside an HTML table (e.g. TOC rows)."""
     return node.find_parent("table") is not None
 
 
 def _get_block_element(tag: Tag) -> Tag:
-    """Get the block element of the tag"""
+    """Walk up from an inline tag to its enclosing block-level element."""
     block = tag
     while block and block.name in INLINE_TAGS:
         block = block.parent
@@ -44,7 +116,7 @@ def _get_block_element(tag: Tag) -> Tag:
 
 
 def _at_or_past_end(el, end_el: Tag | None) -> bool:
-    """Check if the element is at or past the end of the section"""
+    """Return True when traversal has reached or passed the section end marker."""
     if end_el is None:
         return False
     if el is end_el:
@@ -55,24 +127,21 @@ def _at_or_past_end(el, end_el: Tag | None) -> bool:
 
 
 def _find_item7_start(soup: BeautifulSoup) -> Tag | None:
-    """Find the first Item 7 header outside of tables (skips the TOC)."""
+    """Find the first Item 7 header outside of tables (skips TOC)."""
     for text_node in soup.find_all(string=ITEM7_TEXT):
-        # Skip TOC item 7 headers
         if _is_inside_table(text_node):
             continue
 
         block = _get_block_element(text_node.parent)
         block_text = block.get_text(" ", strip=True)
-        # when there is a match
         if ITEM7_HEADER.match(block_text) or ITEM7_HEADER_LOOSE.match(block_text):
             return block
-    # if no match
+
     return None
 
 
 def _find_item7_end(start_el: Tag) -> Tag | None:
     """Find where Item 7 ends (Item 7A or Item 8), ignoring table content."""
-    # loop through the next elements from the start of item 7
     for el in start_el.next_elements:
         if isinstance(el, NavigableString) and _is_inside_table(el):
             continue
@@ -97,6 +166,7 @@ def _find_item7_end(start_el: Tag) -> Tag | None:
 
 
 def _table_to_rows(table: Tag) -> tuple[list[str], list[list[str]]]:
+    """Parse an HTML table into a header row and body rows."""
     rows = []
     for tr in table.find_all("tr"):
         cells = [
@@ -117,7 +187,7 @@ def _table_to_rows(table: Tag) -> tuple[list[str], list[list[str]]]:
 
 
 def _extract_section_blocks(start_el: Tag, end_el: Tag | None) -> list[dict]:
-    """Extract Item 7 as ordered paragraph and table blocks."""
+    """Extract Item 7 content between start and end markers as ordered blocks."""
     blocks = []
     seen_blocks = {id(start_el)}
     seen_tables = set()
@@ -164,46 +234,3 @@ def _extract_section_blocks(start_el: Tag, end_el: Tag | None) -> list[dict]:
             add_paragraph(block.get_text(" ", strip=True))
 
     return blocks
-
-
-def get_item7_blocks(tenK) -> list[dict] | None:
-    """Extract Item 7 (MD&A) as structured blocks from a 10-K filing."""
-    soup = BeautifulSoup(tenK.html(), "html.parser")
-
-    start_el = _find_item7_start(soup)
-    if start_el is None:
-        return None
-
-    end_el = _find_item7_end(start_el)
-    return _extract_section_blocks(start_el, end_el)
-
-
-def item7_cache_path(ticker: str, year: int) -> str:
-    return os.path.join(CACHE_DIR, f"{ticker.upper()}_item7_{year}.json")
-
-
-def save_item7_cache(ticker: str, year: int, filing_date: str, blocks: list[dict]) -> dict:
-    """Write extracted Item 7 blocks to the local cache."""
-    payload = {
-        "ticker": ticker.upper(),
-        "year": year,
-        "filing_date": filing_date,
-        "extracted_at": datetime.now(timezone.utc).isoformat(),
-        "blocks": blocks,
-    }
-    with open(item7_cache_path(ticker, year), "w", encoding="utf-8") as cache_file:
-        json.dump(payload, cache_file, default=str)
-    return payload
-
-
-def fetch_item7(ticker: str, year: int) -> dict | None:
-    """Fetch a 10-K from SEC, extract Item 7 blocks, and save them to cache."""
-    filing = get_tenK_filing(ticker, year)
-    if filing is None:
-        return None
-
-    blocks = get_item7_blocks(filing)
-    if blocks is None:
-        return None
-
-    return save_item7_cache(ticker, year, _filing_date(filing), blocks)
