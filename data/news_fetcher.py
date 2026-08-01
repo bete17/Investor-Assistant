@@ -1,6 +1,6 @@
 import yfinance as yf
 import json
-from financials_fetcher import is_cache_valid, CACHE_DIR
+from data.financials_fetcher import is_cache_valid, CACHE_DIR
 
 def fetch_news(ticker: str) -> list:
     """Get all the news and articles related to the stock from yfinance

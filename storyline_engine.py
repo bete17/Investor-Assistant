@@ -10,7 +10,7 @@ from data.storyline_fetcher import CACHE_DIR, fetch_item7, item7_cache_path
 
 load_dotenv()
 
-MAX_SUMMARY_INPUT_CHARS = 100_000
+MAX_SUMMARY_INPUT_CHARS = 30000
 SUMMARY_SYSTEM_PROMPT = """You are a financial analyst summarizing SEC 10-K Management Discussion and Analysis (Item 7) content for investors.
 
 Write a concise summary that covers:
@@ -131,12 +131,15 @@ def summarize_text(text: str) -> str:
     if not text or not text.strip():
         return ""
 
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_API_KEY is not set. Add it to your .env file.")
+        raise ValueError("GROQ_API_KEY is not set. Add it to your .env file.")
 
-    client = OpenAI(api_key=api_key)
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://api.groq.com/openai/v1",
+    )
+    model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     prompt_text = _truncate_for_llm(text)
 
     response = client.chat.completions.create(

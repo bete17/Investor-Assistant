@@ -12,6 +12,8 @@ Pipeline (matches storyline_fetcher.py):
 6. Save extracted blocks to cache
 7. Verify the cached JSON schema is correct
 """
+from edgar import set_identity
+set_identity("Anar Valadov anarvaladov@gmail.com") 
 
 import json
 import os
