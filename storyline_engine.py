@@ -10,7 +10,7 @@ from data.storyline_fetcher import CACHE_DIR, fetch_item7, item7_cache_path
 
 load_dotenv()
 
-MAX_SUMMARY_INPUT_CHARS = 30000
+MAX_SUMMARY_INPUT_CHARS = 30000 
 SUMMARY_SYSTEM_PROMPT = """You are a financial analyst summarizing SEC 10-K Management Discussion and Analysis (Item 7) content for investors.
 
 Write a concise summary that covers:
@@ -20,6 +20,22 @@ Write a concise summary that covers:
 - Notable year-over-year changes when the input appears to be a diff
 
 Use short bullet points. Be factual and only use numbers that appear in the source text."""
+
+
+# ==========================================================
+# PROVIDER FALLBACK CHAIN
+# ==========================================================
+# Tried in order - each entry is (env var, base_url, default model,
+# max input chars for that provider). Missing keys are skipped;
+# failures fall through to the next provider automatically.
+_PROVIDER_CHAIN = [
+    ("GEMINI_API_KEY", "https://generativelanguage.googleapis.com/v1beta/openai/", "gemini-2.5-flash", 100_000),
+    ("CEREBRAS_API_KEY", "https://api.cerebras.ai/v1", "gpt-oss-120b", 24_000),
+    ("GROQ_API_KEY", "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile", 30_000),
+    ("OPENROUTER_API_KEY", "https://openrouter.ai/api/v1", "openrouter/free", 60_000),
+    ("COHERE_API_KEY", "https://api.cohere.com/compatibility/v1", "command-r-plus", 60_000),
+]
+
 
 
 def load_item7_cache(ticker: str, year: int) -> dict | None:
@@ -115,7 +131,7 @@ def reduce_text(ticker: str, year: int) -> str | None:
     return diff if diff.strip() else current_text
 
 
-def _truncate_for_llm(text: str, max_chars: int = MAX_SUMMARY_INPUT_CHARS) -> str:
+def _truncate_for_llm(text: str, max_chars: int) -> str:
     if len(text) <= max_chars:
         return text
 
@@ -127,32 +143,48 @@ def _truncate_for_llm(text: str, max_chars: int = MAX_SUMMARY_INPUT_CHARS) -> st
 
 
 def summarize_text(text: str) -> str:
-    """Summarize Item 7 or diff text using an LLM."""
+    """Summarize Item 7 or diff text using an LLM, trying each configured provider in order."""
     if not text or not text.strip():
         return ""
 
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise ValueError("GROQ_API_KEY is not set. Add it to your .env file.")
+    last_error = None
+    tried_any = False
 
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://api.groq.com/openai/v1",
-    )
-    model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-    prompt_text = _truncate_for_llm(text)
+    for env_var, base_url, default_model, max_chars in _PROVIDER_CHAIN:
+        api_key = os.getenv(env_var)
+        if not api_key:
+            continue
 
-    response = client.chat.completions.create(
-        model=model,
-        temperature=0.2,
-        messages=[
-            {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
-            {"role": "user", "content": prompt_text},
-        ],
-    )
+        tried_any = True
+        model = os.getenv(f"{env_var}_MODEL", default_model)
+        prompt_text = _truncate_for_llm(text, max_chars)
 
-    summary = response.choices[0].message.content
-    return summary.strip() if summary else ""
+        try:
+            client = OpenAI(api_key=api_key, base_url=base_url)
+            response = client.chat.completions.create(
+                model=model,
+                temperature=0.2,
+                messages=[
+                    {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt_text},
+                ],
+            )
+            summary = response.choices[0].message.content
+            if summary and summary.strip():
+                return summary.strip()
+            last_error = RuntimeError(f"{env_var} returned an empty response")
+        except Exception as error:
+            last_error = error
+            continue
+
+    if not tried_any:
+        raise ValueError(
+            "No AI provider is configured. Set at least one of: "
+            + ", ".join(env_var for env_var, *_ in _PROVIDER_CHAIN)
+            + " in your .env file."
+        )
+
+    raise RuntimeError(f"All configured AI providers failed. Last error: {last_error}")
 
 
 def summary_cache_path(ticker: str, year: int) -> str:
