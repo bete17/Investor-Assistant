@@ -4,7 +4,7 @@ Fetch SEC 10-K filings, extract Item 7 (MD&A), and cache structured blocks local
 See tests/test_storyline_fetcher.py for the behaviors this module must support.
 """
 from edgar import set_identity
-set_identity("Anar Valadov anarvaladov@gmail.com")
+set_identity("Name Lastname namelastname@gmail.com")
 
 import json
 import os

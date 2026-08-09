@@ -34,6 +34,7 @@ from utils import (
     format_percent,
     format_ratio,
     format_money,
+    is_valid_ticker,
 )
 
 
@@ -269,6 +270,7 @@ def create_financial_chart(
                 x=labels,
                 y=values,
                 name=title,
+                marker_color="#C9974A",
                 hovertemplate=(
                     "<b>%{x}</b><br>"
                     + title
@@ -286,8 +288,8 @@ def create_financial_chart(
                 y=values,
                 mode="lines+markers",
                 name=title,
-                line=dict(width=3),
-                marker=dict(size=9),
+                line=dict(width=3, color="#10B981"),
+                marker=dict(size=9, color="#10B981"),
                 hovertemplate=(
                     "<b>%{x}</b><br>"
                     + title
@@ -306,20 +308,24 @@ def create_financial_chart(
         plot_bgcolor="rgba(0,0,0,0)",
         showlegend=False,
         hovermode="x unified",
+        font=dict(color="#8B93A3", family="Inter"),
     )
 
     fig.update_xaxes(
         showgrid=False,
         zeroline=False,
         title=None,
+        color="#8B93A3",
     )
 
     fig.update_yaxes(
         showgrid=True,
+        gridcolor="rgba(255,255,255,0.08)",
         zeroline=False,
         tickprefix="$",
-        tickformat="~s",  # SI-unit shorthand, e.g. 1.5G
+        tickformat="~s",
         title=None,
+        color="#8B93A3",
     )
 
     return fig
@@ -414,8 +420,8 @@ st.markdown(
 # to False. Persist the ticker in session_state so the dashboard
 # survives reruns instead of disappearing.
 
-if "analyzed_ticker" not in st.session_state:
-    st.session_state.analyzed_ticker = None
+if "active_ticker" not in st.session_state:
+    st.session_state.active_ticker = None
 
 
 # ==========================================================
@@ -433,12 +439,16 @@ with search_col:
 
     ticker_input = st.text_input(
         "Ticker Symbol",
-        value=st.session_state.analyzed_ticker or "AAPL",
+        value=st.session_state.active_ticker or "AAPL",
         placeholder="Enter ticker symbol, e.g. AAPL",
         label_visibility="collapsed",
     )
 
     ticker_input = ticker_input.strip().upper()
+
+    if ticker_input and not is_valid_ticker(ticker_input):
+        st.error("Invalid ticker format.")
+        st.stop()
 
 with button_col:
 
@@ -454,9 +464,9 @@ if analyze:
         st.warning("Please enter a ticker symbol.")
         st.stop()
 
-    st.session_state.analyzed_ticker = ticker_input
+    st.session_state.active_ticker = ticker_input
 
-ticker = st.session_state.analyzed_ticker
+ticker = st.session_state.active_ticker
 
 
 # ==========================================================

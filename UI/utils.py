@@ -3,6 +3,15 @@
 # --------------------------------------------------
 
 
+import re
+
+TICKER_PATTERN = re.compile(r"^[A-Z0-9\.\-]{1,10}$")
+
+def is_valid_ticker(ticker: str) -> bool:
+    return bool(TICKER_PATTERN.match(ticker))
+
+
+
 def format_percent(value):
     """
     Converts a number into a percentage string.
@@ -200,3 +209,4 @@ def cash_flow_status(value):
         return "Neutral"
 
     return "Negative"
+

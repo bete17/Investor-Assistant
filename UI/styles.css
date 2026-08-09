@@ -1,32 +1,33 @@
 /* ==========================================================
-   PALETTE
-   background : #0f172a
-   card       : #1e293b
-   border     : #334155
-   text       : #f1f5f9
-   text-muted : #94a3b8
-   accent     : #3b82f6
-   positive   : #22c55e
-   negative   : #ef4444
-   warning    : #f59e0b
-   neutral    : #94a3b8
+   DESIGN TOKENS - Institutional Terminal
    ========================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+    --bg: #0B0F19;
+    --bg-alt: #0E1320;
+    --panel: #121826;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --text: #E5E7EB;
+    --text-muted: #8B93A3;
+    --accent: #C9974A;
+    --accent-hover: #DCAE68;
+    --positive: #10B981;
+    --negative: #EF4444;
+    --warning: #F59E0B;
+    --neutral: #64748B;
+    --sans: 'Inter', -apple-system, sans-serif;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --radius: 4px;
+}
 
 [data-testid="stAppViewContainer"],
 [data-testid="stMain"],
 .stApp {
-    background: #0f172a !important;
+    background: var(--bg) !important;
 }
-
-/* ---------- Background ---------- */
-
-.stApp {
-    background: #0f172a;
-}
-
-/* ---------- Hide Streamlit chrome ---------- */
-
-/* ---------- Hide Streamlit chrome ---------- */
 
 #MainMenu,
 footer {
@@ -37,105 +38,199 @@ header {
     background: transparent !important;
 }
 
-[data-testid="stDecoration"] {
+[data-testid="stDecoration"],
+[data-testid="stAppDeployButton"] {
     display: none;
 }
 
 /* ---------- Base typography ---------- */
+/* Icon-bearing spans (Material Symbols ligatures, header-anchor
+   links, expander chevrons) are excluded from the base rule up
+   front, instead of being patched back afterward - avoids
+   specificity fights and catches every icon span, not just the
+   ones we've noticed so far. */
 
-/* Fallback text color for our custom HTML blocks, which aren't
-   covered by Streamlit's own theming. */
-.stApp, .stApp p, .stApp span, .stApp label {
-    color: #f1f5f9;
+.stApp, .stApp p, .stApp label,
+.stApp span:not([data-testid*="Icon"]):not([class*="material-symbols"]) {
+    color: var(--text);
+    font-family: var(--sans);
 }
 
-h1, h2 {
-    color: #f1f5f9;
+[data-testid="stIconMaterial"],
+span[data-testid*="Icon"],
+[class*="material-symbols"] {
+    font-family: 'Material Symbols Outlined', 'Material Symbols Rounded', 'Material Symbols Sharp' !important;
+}
+
+[data-testid="stVerticalBlock"] {
+    gap: 0.5rem !important;
+}
+
+h1, h2, h3 {
+    font-family: var(--sans);
+    color: var(--text);
+    font-weight: 600;
+    letter-spacing: -0.01em;
 }
 
 h3 {
-    color: #cbd5e1;
+    color: #C7CBD4;
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Header-anchor link icons (the # link Streamlit adds next to
+   headings) - default SVG fill is invisible/broken on dark bg. */
+[data-testid="stHeaderActionElements"] svg {
+    fill: var(--text-muted) !important;
+    opacity: 0.5;
+}
+
+[data-testid="stTextInput"] input {
+    background: var(--panel) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius) !important;
+    color: var(--text) !important;
+    font-family: var(--mono) !important;
+    font-size: 14px !important;
+}
+
+[data-testid="stTextInput"] input:focus {
+    border-color: var(--accent) !important;
+    box-shadow: none !important;
+}
+
+/* ---------- Buttons ---------- */
+/* Primary CTA uses the accent color, not red - red is reserved
+   for negative/bearish signal elsewhere on the page, so a red
+   "Analyze" button undercuts that semantic meaning. Also fixes
+   text wrapping ("Analyz e") by forcing nowrap + a sane min-width. */
+
+.stButton button {
+    border-radius: var(--radius) !important;
+    font-family: var(--sans) !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em;
+    box-shadow: none !important;
+    white-space: nowrap !important;
+    padding: 8px 20px !important;
+}
+
+.stButton button[kind="primary"] {
+    background: var(--accent) !important;
+    color: #0B0F19 !important;
+    border: none !important;
+}
+
+.stButton button[kind="primary"]:hover {
+    background: var(--accent-hover) !important;
+    color: #0B0F19 !important;
+}
+
+/* ---------- Segmented control (year picker) ---------- */
+/* Kill the default focus ring, which renders as an unstyled
+   reddish outline that doesn't match the palette. */
+
+[data-testid="stSegmentedControl"] label {
+    border-radius: var(--radius) !important;
+}
+
+[data-testid="stSegmentedControl"] label[data-checked="true"] {
+    border-color: var(--accent) !important;
+    background: rgba(201, 151, 74, 0.12) !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+[data-testid="stSegmentedControl"] label:focus-within {
+    box-shadow: none !important;
+    outline: 1px solid var(--accent) !important;
 }
 
 /* ---------- Section labels ---------- */
 
 .section-label {
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 10.5px;
+    font-weight: 600;
     letter-spacing: 0.12em;
-    color: #3b82f6;
-    margin: 8px 0 4px 0;
+    color: var(--text-muted);
+    margin: 6px 0 4px 0;
+    text-transform: uppercase;
+    font-family: var(--sans);
 }
 
 .section-spacer {
-    height: 12px;
+    height: 8px;
 }
 
 .large-space {
-    height: 32px;
+    height: 20px;
 }
 
 /* ---------- Dashboard header ---------- */
 
 .dashboard-header {
-    padding: 8px 0 24px 0;
-    border-bottom: 1px solid #1e293b;
-    margin-bottom: 24px;
+    padding: 4px 0 16px 0;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 16px;
 }
 
 .dashboard-header .eyebrow {
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 10.5px;
+    font-weight: 600;
     letter-spacing: 0.14em;
-    color: #3b82f6;
+    color: var(--accent);
     margin-bottom: 6px;
+    text-transform: uppercase;
+    font-family: var(--sans);
 }
 
 .dashboard-header h1 {
-    margin: 4px 0;
-    font-size: 34px;
+    margin: 2px 0;
+    font-size: 22px;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: -0.01em;
 }
 
 .dashboard-header p {
-    color: #94a3b8;
-    font-size: 15px;
-    margin: 0;
+    color: var(--text-muted);
+    font-size: 13px;
+    margin: 4px 0 0 0;
+    font-family: var(--sans);
 }
 
-/* ---------- Welcome / empty state card ---------- */
+/* ---------- Welcome / empty state ---------- */
 
 .welcome-card {
     display: flex;
     align-items: center;
-    gap: 20px;
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 18px;
-    padding: 28px;
-    margin-top: 12px;
+    gap: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-top: 8px;
 }
 
 .welcome-card .welcome-icon {
-    font-size: 32px;
-    color: #3b82f6;
-    background: rgba(59, 130, 246, 0.12);
-    width: 56px;
-    height: 56px;
-    min-width: 56px;
-    border-radius: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: none;
 }
 
 .welcome-card h3 {
-    margin: 0 0 4px 0;
-    color: #f1f5f9;
+    margin: 0 0 3px 0;
+    color: var(--text);
+    font-size: 14px;
+    text-transform: none;
+    letter-spacing: normal;
 }
 
 .welcome-card p {
     margin: 0;
-    color: #94a3b8;
+    color: var(--text-muted);
+    font-size: 13px;
 }
 
 /* ---------- Company overview header ---------- */
@@ -144,198 +239,211 @@ h3 {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: linear-gradient(135deg, #1e293b 0%, #16213a 100%);
-    border: 1px solid #334155;
-    border-radius: 18px;
-    padding: 22px 26px;
-    margin: 8px 0 20px 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin: 4px 0 14px 0;
 }
 
 .company-header .company-symbol {
-    font-size: 26px;
+    font-size: 20px;
     font-weight: 700;
-    color: #f1f5f9;
-    letter-spacing: 0.02em;
+    color: var(--text);
+    letter-spacing: 0.01em;
+    font-family: var(--mono);
 }
 
 .company-header .company-subtitle {
-    color: #94a3b8;
-    font-size: 14px;
+    color: var(--text-muted);
+    font-size: 12.5px;
     margin-top: 2px;
+    font-family: var(--sans);
 }
 
 .company-header .analysis-badge {
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 10px;
+    font-weight: 600;
     letter-spacing: 0.08em;
-    color: #3b82f6;
-    background: rgba(59, 130, 246, 0.12);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    padding: 6px 12px;
-    border-radius: 999px; /* pill shape */
+    color: var(--text-muted);
+    background: var(--bg-alt);
+    border: 1px solid var(--line);
+    padding: 5px 10px;
+    border-radius: var(--radius);
+    text-transform: uppercase;
 }
 
 /* ---------- KPI cards ---------- */
 
 .kpi-card {
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 18px;
-    padding: 18px;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, .25);
-    transition: all .2s ease;
-    height: 100%; /* equal height across a row */
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    box-shadow: none;
+    transition: border-color .12s ease;
+    height: 100%;
 }
 
 .kpi-card:hover {
-    transform: translateY(-4px);
-    border: 1px solid #3b82f6;
+    border-color: var(--line-strong);
 }
 
 .kpi-title {
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 10.5px;
+    font-weight: 600;
     letter-spacing: 0.08em;
-    color: #94a3b8;
-    margin-bottom: 10px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    font-family: var(--sans);
 }
 
 .kpi-value {
-    font-size: 26px;
-    font-weight: 700;
-    color: #f1f5f9;
-    margin-bottom: 10px;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
 }
 
 .kpi-description {
-    font-size: 12.5px;
-    color: #64748b;
-    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 6px;
     line-height: 1.4;
+    font-family: var(--sans);
 }
-
-/* Status pill + shape-coded dot (not color-only, for colorblind
-   accessibility): circle = positive, square = negative,
-   triangle = warning, diamond = neutral. */
 
 .kpi-status {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    font-size: 13px;
+    gap: 6px;
+    font-size: 11.5px;
     font-weight: 600;
-    padding: 4px 10px;
+    padding: 2px 8px;
     border-radius: 999px;
     width: fit-content;
+    font-family: var(--sans);
 }
 
 .status-dot {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
     display: inline-block;
     flex-shrink: 0;
 }
 
 .kpi-status.positive {
-    color: #22c55e;
-    background: rgba(34, 197, 94, 0.12);
+    color: var(--positive);
+    background: rgba(16, 185, 129, 0.12);
 }
 .kpi-status.positive .status-dot {
-    background: #22c55e;
-    border-radius: 50%; /* circle */
+    background: var(--positive);
+    border-radius: 50%;
 }
 
 .kpi-status.negative {
-    color: #ef4444;
+    color: var(--negative);
     background: rgba(239, 68, 68, 0.12);
 }
 .kpi-status.negative .status-dot {
-    background: #ef4444;
-    border-radius: 2px; /* square */
+    background: var(--negative);
+    border-radius: 1px;
 }
 
 .kpi-status.warning {
-    color: #f59e0b;
+    color: var(--warning);
     background: rgba(245, 158, 11, 0.12);
 }
 .kpi-status.warning .status-dot {
-    background: #f59e0b;
+    background: var(--warning);
     border-radius: 0;
-    clip-path: polygon(50% 0%, 0% 100%, 100% 100%); /* triangle */
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
 }
 
 .kpi-status.neutral {
-    color: #94a3b8;
-    background: rgba(148, 163, 184, 0.12);
+    color: var(--neutral);
+    background: rgba(100, 116, 139, 0.12);
 }
 .kpi-status.neutral .status-dot {
-    background: #94a3b8;
+    background: var(--neutral);
     border-radius: 1px;
-    transform: rotate(45deg); /* diamond */
+    transform: rotate(45deg);
 }
 
 /* ---------- Insight cards ---------- */
 
 .insight-card {
     display: flex;
-    gap: 14px;
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 14px;
-    padding: 16px 18px;
-    margin-bottom: 12px;
+    gap: 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    margin-bottom: 8px;
 }
 
 .insight-indicator {
-    width: 4px;
-    min-width: 4px;
-    border-radius: 4px;
-    background: #94a3b8; /* fallback */
+    width: 3px;
+    min-width: 3px;
+    border-radius: 2px;
+    background: var(--neutral);
 }
 
-.insight-indicator.positive { background: #22c55e; }
-.insight-indicator.negative { background: #ef4444; }
-.insight-indicator.warning  { background: #f59e0b; }
-.insight-indicator.neutral  { background: #94a3b8; }
+.insight-indicator.positive { background: var(--positive); }
+.insight-indicator.negative { background: var(--negative); }
+.insight-indicator.warning  { background: var(--warning); }
+.insight-indicator.neutral  { background: var(--neutral); }
 
 .insight-title {
-    font-size: 14.5px;
-    font-weight: 700;
-    color: #f1f5f9;
-    margin-bottom: 3px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+    font-family: var(--sans);
 }
 
 .insight-description {
-    font-size: 13px;
-    color: #94a3b8;
-    line-height: 1.45;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    font-family: var(--sans);
 }
 
 /* ---------- Growth bars ---------- */
 
 .growth-row {
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 14px;
-    padding: 16px 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
 }
 
 .growth-header {
     display: flex;
     justify-content: space-between;
-    font-size: 13.5px;
-    color: #cbd5e1;
-    margin-bottom: 12px;
+    font-size: 12px;
+    color: var(--text);
+    margin-bottom: 8px;
+    font-family: var(--sans);
 }
 
-.growth-header strong.positive { color: #22c55e; }
-.growth-header strong.negative { color: #ef4444; }
+.growth-header strong {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+}
+
+.growth-header strong.positive { color: var(--positive); }
+.growth-header strong.negative { color: var(--negative); }
 
 .growth-track {
-    position: relative; /* anchors the absolutely-positioned children below */
-    height: 6px;
-    background: #334155;
-    border-radius: 999px;
+    position: relative;
+    height: 3px;
+    background: var(--line);
+    border-radius: 2px;
     margin: 6px 0;
 }
 
@@ -343,129 +451,211 @@ h3 {
     position: absolute;
     left: 50%;
     top: -3px;
-    width: 2px;
-    height: 12px;
-    background: #64748b;
-    transform: translateX(-1px); /* re-center the line on the midpoint */
+    width: 1px;
+    height: 9px;
+    background: var(--text-muted);
+    transform: translateX(-0.5px);
 }
 
 .growth-marker {
     position: absolute;
-    top: -5px;
-    transform: translateX(-50%); /* center marker on its "left" position */
+    top: -4px;
+    transform: translateX(-50%);
 }
 
 .growth-marker .growth-dot {
-    width: 16px;
-    height: 16px;
+    width: 11px;
+    height: 11px;
     border-radius: 50%;
-    border: 3px solid #0f172a; /* matches page bg for a cutout look */
+    border: 2px solid var(--bg);
 }
 
-.growth-marker.positive .growth-dot { background: #22c55e; }
-.growth-marker.negative .growth-dot { background: #ef4444; }
+.growth-marker.positive .growth-dot { background: var(--positive); }
+.growth-marker.negative .growth-dot { background: var(--negative); }
 
 .growth-scale {
     display: flex;
     justify-content: space-between;
-    font-size: 11px;
-    color: #64748b;
-    margin-top: 10px;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-family: var(--sans);
 }
 
 /* ---------- Footer ---------- */
 
 .dashboard-footer {
-    text-align: center;
-    font-size: 12px;
-    color: #64748b;
+    text-align: left;
+    font-size: 11px;
+    color: var(--text-muted);
     line-height: 1.6;
-    padding: 24px 0 8px 0;
-    border-top: 1px solid #1e293b;
-    margin-top: 32px;
+    padding: 16px 0 8px 0;
+    border-top: 1px solid var(--line);
+    margin-top: 20px;
+    font-family: var(--sans);
 }
 
 .dashboard-footer strong {
-    color: #94a3b8;
+    color: var(--text);
 }
 
 /* ==========================================================
-   COMPARE STOCKS PAGE - additions
+   COMPARE STOCKS PAGE
    ========================================================== */
 
 .compare-col-header {
     text-align: center;
-    font-weight: 700;
-    font-size: 13px;
+    font-weight: 600;
+    font-size: 11px;
     letter-spacing: 0.06em;
-    color: #94a3b8;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #334155;
-    margin-bottom: 8px;
+    color: var(--text-muted);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line-strong);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    font-family: var(--sans);
 }
 
 .compare-row-label {
-    font-size: 13.5px;
-    color: #cbd5e1;
-    padding: 10px 0;
+    font-size: 12.5px;
+    color: var(--text);
+    padding: 8px 0;
+    font-family: var(--sans);
 }
 
 .compare-row-value {
     text-align: center;
-    font-size: 14px;
-    color: #94a3b8;
-    padding: 10px 0;
-    border-bottom: 1px solid #1e293b;
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
 }
 
-/* Highlights whichever of the two companies wins a given metric */
 .compare-row-value.compare-winner {
-    color: #22c55e;
-    font-weight: 700;
-}
-
-[data-testid="stAppDeployButton"] {
-    display: none;
+    color: var(--positive);
+    font-weight: 600;
 }
 
 /* ==========================================================
-   STORYLINE PAGE - additions
+   STORYLINE PAGE
    ========================================================== */
 
 .story-year-marker {
     display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-top: 18px;
+    align-items: baseline;
+    gap: 10px;
+    margin-top: 16px;
     margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--line-strong);
 }
 
 .story-year {
     font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    color: #94a3b8;
-    min-width: 48px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text);
+    min-width: 44px;
+    font-family: var(--mono);
+}
+
+.story-year-marker-empty {
+    border-bottom: 1px dashed var(--line);
 }
 
 .story-year-marker-empty .story-year {
-    color: #64748b;
+    color: var(--text-muted);
 }
 
 .story-empty-note {
-    font-size: 13px;
-    color: #64748b;
+    font-size: 12px;
+    color: var(--text-muted);
     font-style: italic;
+    font-family: var(--sans);
 }
 
 .story-bullets {
     margin: 0;
-    padding-left: 20px;
-    color: #cbd5e1;
-    font-size: 13.5px;
+    padding-left: 18px;
+    color: var(--text);
+    font-size: 13px;
     line-height: 1.6;
+    font-family: var(--sans);
 }
 
 .story-bullets li {
     margin-bottom: 6px;
+}
+
+/* ==========================================================
+   SIDEBAR
+   ========================================================== */
+
+[data-testid="stSidebar"] {
+    background: var(--bg-alt) !important;
+    border-right: 1px solid var(--line);
+}
+
+[data-testid="stSidebar"] [data-testid="stSidebarHeader"] {
+    background: var(--bg-alt) !important;
+    border-bottom: 1px solid var(--line);
+}
+
+[data-testid="stSidebar"] * {
+    color: var(--text) !important;
+    font-family: var(--sans) !important;
+}
+
+[data-testid="stSidebarNav"] a {
+    border-radius: var(--radius);
+    font-size: 13px;
+}
+
+[data-testid="stSidebarNav"] a:hover {
+    background: rgba(255, 255, 255, 0.04) !important;
+}
+
+[data-testid="stSidebarNav"] a[aria-current="page"] {
+    background: rgba(201, 151, 74, 0.1) !important;
+    color: var(--accent) !important;
+    font-weight: 600;
+}
+
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapseButton"] {
+    background: var(--bg-alt) !important;
+    color: var(--text) !important;
+}
+
+/* ---------- Fix: input/button height mismatch ---------- */
+[data-testid="stTextInput"] input {
+    height: 42px;
+    padding: 0 12px !important;
+}
+
+.stButton button {
+    height: 42px;
+    padding: 0 20px !important;
+}
+
+/* Align the search input and button on the same baseline instead
+   of each column centering independently */
+[data-testid="column"] {
+    display: flex;
+    align-items: flex-end;
+}
+
+
+/* ---------- Consistent spacing scale ---------- */
+[data-testid="stVerticalBlockBorderWrapper"],
+[data-testid="stMarkdownContainer"] {
+    margin-bottom: 0 !important;
+}
+
+.section-label {
+    margin: 14px 0 6px 0;
 }
