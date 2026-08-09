@@ -26,6 +26,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from storyline_engine import summarize_item7
 from data.news_fetcher import fetch_news
 from sentiment_engine import SentimentEngine
+from utils import is_valid_ticker
 
 # ==========================================================
 # PAGE CONFIGURATION
@@ -85,11 +86,15 @@ def summary_to_bullets(summary_text):
     if not summary_text:
         return []
 
+    skip_prefixes = ("here is", "here's a summary", "here's a concise summary")
+
     lines = []
     for raw_line in summary_text.splitlines():
         line = raw_line.strip().lstrip("-•*").strip()
-        if line:
-            lines.append(line)
+        line = line.replace("**", "")
+        if not line or line.lower().startswith(skip_prefixes):
+            continue
+        lines.append(line)
     return lines
 
 
@@ -184,8 +189,8 @@ st.markdown(
 # SESSION STATE
 # ==========================================================
 
-if "storyline_ticker" not in st.session_state:
-    st.session_state.storyline_ticker = None
+if "active_ticker" not in st.session_state:
+    st.session_state.active_ticker = None
 
 # ==========================================================
 # TICKER INPUT
@@ -198,10 +203,14 @@ search_col, button_col = st.columns([5, 1])
 with search_col:
     ticker_input = st.text_input(
         "Ticker Symbol",
-        value=st.session_state.storyline_ticker or "AAPL",
+        value=st.session_state.active_ticker or "AAPL",
         placeholder="Enter ticker symbol, e.g. AAPL",
         label_visibility="collapsed",
     ).strip().upper()
+
+    if ticker_input and not is_valid_ticker(ticker_input):
+        st.error("Invalid ticker format.")
+        st.stop()
 
 with button_col:
     load_clicked = st.button("View Story", use_container_width=True, type="primary")
@@ -210,9 +219,15 @@ if load_clicked:
     if not ticker_input:
         st.warning("Please enter a ticker symbol.")
         st.stop()
-    st.session_state.storyline_ticker = ticker_input
+    st.session_state.active_ticker = ticker_input
 
-ticker = st.session_state.storyline_ticker
+ticker = st.session_state.active_ticker
+
+# ==========================================================
+# TICKER INPUT
+# ==========================================================
+
+
 
 if not ticker:
     st.markdown(
@@ -252,27 +267,55 @@ years = list(range(MOST_RECENT_FILING_YEAR, MOST_RECENT_FILING_YEAR - YEARS_TO_S
 
 st.markdown('<div class="large-space"></div>', unsafe_allow_html=True)
 st.markdown(f'<div class="section-label">{html.escape(ticker)} - YEAR BY YEAR</div>', unsafe_allow_html=True)
-st.caption("A summary of management's own account of the business for each year on file.")
+st.caption("Pick a year to see management's own account of the business for that filing.")
 
-any_data_found = False
+if "storyline_selected_year" not in st.session_state or st.session_state.get("storyline_selected_ticker") != ticker:
+    st.session_state.storyline_selected_year = years[0]
+    st.session_state.storyline_selected_ticker = ticker
+    st.session_state.storyline_loaded_years = set()  # reset when ticker changes
 
-with st.spinner(f"Loading the story for {ticker}..."):
-    for year in years:
-        try:
-            result = load_year_summary(ticker, year)
-        except Exception as error:
-            st.error(f"Unable to load {year}: {error}")
-            continue
+if "storyline_loaded_years" not in st.session_state:
+    st.session_state.storyline_loaded_years = set()
 
-        if result is None:
-            timeline_gap(year)
-            continue
+loading = st.session_state.get("storyline_loading", False)
 
-        any_data_found = True
-        timeline_entry(year, result.get("summary", ""))
+selected_year = st.segmented_control(
+    "Select year",
+    options=years,
+    default=st.session_state.storyline_selected_year,
+    label_visibility="collapsed",
+    disabled=loading,
+    key="storyline_selected_year",
+)
 
-if not any_data_found:
-    st.info(f"No 10-K data was found for {ticker} in the last {YEARS_TO_SHOW} years.")
+# Show which years are already cached this session, so the user
+# knows which clicks are "free" vs. which will trigger a new call.
+loaded_years = [
+    year for year in years
+    if load_year_summary.__wrapped__ is not None  # placeholder, replaced below
+]
+
+already_loaded = selected_year in st.session_state.storyline_loaded_years
+
+st.session_state.storyline_loading = True
+spinner_text = f"Loading {selected_year} for {ticker}..." if not already_loaded else f"Fetching {selected_year} (cached)..."
+with st.spinner(spinner_text):
+    try:
+        result = load_year_summary(ticker, selected_year)
+        st.session_state.storyline_loaded_years.add(selected_year)
+    except Exception as error:
+        st.error(f"Unable to load {selected_year}: {error}")
+        result = None
+st.session_state.storyline_loading = False
+
+if st.session_state.storyline_loaded_years:
+    loaded_str = ", ".join(str(y) for y in sorted(st.session_state.storyline_loaded_years, reverse=True))
+    st.caption(f"✓ Loaded this session: {loaded_str}")
+
+if result is None:
+    timeline_gap(selected_year)
+else:
+    timeline_entry(selected_year, result.get("summary", ""))
 
 # ==========================================================
 # DISCLAIMER
