@@ -28,15 +28,15 @@ if str(PROJECT_ROOT) not in sys.path:
 # PROJECT IMPORTS
 # ==========================================================
 
-from kpi_engine import calculate_kpis
+from analytics.kpi_engine import calculate_kpis
 from utils import format_percent, format_ratio, format_money
 
-from health_score import (
+from analytics.health_score import (
     calculate_health_score,
     get_score_label,
     METRIC_DISPLAY_NAMES,
 )
-from sector_lookup import get_sector
+from analytics.sector_lookup import get_sector
 
 # Note: this file does NOT import from kpi_dashboard.py, even
 # though it duplicates load_kpis() below. Importing kpi_dashboard.py

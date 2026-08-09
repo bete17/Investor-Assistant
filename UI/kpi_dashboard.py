@@ -28,7 +28,8 @@ if str(PROJECT_ROOT) not in sys.path:
 # PROJECT IMPORTS
 # ==========================================================
 
-from kpi_engine import calculate_kpis
+from analytics.kpi_engine import calculate_kpis
+
 from data.financials_fetcher import fetch_company_financials
 from utils import (
     format_percent,
