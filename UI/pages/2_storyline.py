@@ -23,9 +23,9 @@ if str(PROJECT_ROOT) not in sys.path:
 # PROJECT IMPORTS
 # ==========================================================
 
-from storyline_engine import summarize_item7
+from analytics.storyline_engine import summarize_item7
 from data.news_fetcher import fetch_news
-from sentiment_engine import SentimentEngine
+from analytics.sentiment_engine import SentimentEngine
 from utils import is_valid_ticker
 
 # ==========================================================

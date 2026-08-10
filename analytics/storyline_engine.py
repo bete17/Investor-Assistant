@@ -11,6 +11,7 @@ from data.storyline_fetcher import CACHE_DIR, fetch_item7, item7_cache_path
 load_dotenv()
 
 MAX_SUMMARY_INPUT_CHARS = 30000 
+
 SUMMARY_SYSTEM_PROMPT = """You are a financial analyst summarizing SEC 10-K Management Discussion and Analysis (Item 7) content for investors.
 
 Write a concise summary that covers:
@@ -19,7 +20,9 @@ Write a concise summary that covers:
 - Major risks or headwinds mentioned
 - Notable year-over-year changes when the input appears to be a diff
 
-Use short bullet points. Be factual and only use numbers that appear in the source text."""
+Use short bullet points. Be factual and only use numbers that appear in the source text.
+Do not use markdown bold syntax (**) anywhere. Do not include an introductory or closing sentence - output only the bullet points, starting immediately with the first bullet."""
+
 
 
 # ==========================================================
@@ -28,6 +31,13 @@ Use short bullet points. Be factual and only use numbers that appear in the sour
 # Tried in order - each entry is (env var, base_url, default model,
 # max input chars for that provider). Missing keys are skipped;
 # failures fall through to the next provider automatically.
+#
+# Each provider can also have MORE THAN ONE key configured - e.g. a
+# personal Groq key plus a partner's Groq key - by adding numbered
+# suffixes in .env: GROQ_API_KEY, GROQ_API_KEY_2, GROQ_API_KEY_3, ...
+# All keys for a provider are tried (useful for spreading load
+# across separate free-tier rate limits) before the chain moves on
+# to the next provider. See _get_provider_keys().
 _PROVIDER_CHAIN = [
     ("GEMINI_API_KEY", "https://generativelanguage.googleapis.com/v1beta/openai/", "gemini-2.5-flash", 100_000),
     ("CEREBRAS_API_KEY", "https://api.cerebras.ai/v1", "gpt-oss-120b", 24_000),
@@ -142,8 +152,40 @@ def _truncate_for_llm(text: str, max_chars: int) -> str:
     )
 
 
+def _get_provider_keys(env_var: str) -> list[str]:
+    """
+    Return every API key configured for a provider, checking the
+    base env var first (e.g. GROQ_API_KEY) and then numbered
+    suffixes (GROQ_API_KEY_2, GROQ_API_KEY_3, ...) so more than one
+    key for the same provider - a personal key plus a partner's key,
+    say - can all be tried before the chain falls through to the
+    next provider entirely.
+    """
+    keys = []
+
+    base_key = os.getenv(env_var)
+    if base_key:
+        keys.append(base_key)
+
+    suffix = 2
+    while True:
+        numbered_key = os.getenv(f"{env_var}_{suffix}")
+        if not numbered_key:
+            break
+        keys.append(numbered_key)
+        suffix += 1
+
+    return keys
+
+
 def summarize_text(text: str) -> str:
-    """Summarize Item 7 or diff text using an LLM, trying each configured provider in order."""
+    """
+    Summarize Item 7 or diff text using an LLM, trying each
+    configured provider in order. Within a provider, every
+    configured key (base + numbered suffixes) is tried before
+    moving on to the next provider - so a rate-limited key doesn't
+    burn the provider's whole turn in the chain.
+    """
     if not text or not text.strip():
         return ""
 
@@ -151,31 +193,33 @@ def summarize_text(text: str) -> str:
     tried_any = False
 
     for env_var, base_url, default_model, max_chars in _PROVIDER_CHAIN:
-        api_key = os.getenv(env_var)
-        if not api_key:
+        api_keys = _get_provider_keys(env_var)
+
+        if not api_keys:
             continue
 
         tried_any = True
         model = os.getenv(f"{env_var}_MODEL", default_model)
         prompt_text = _truncate_for_llm(text, max_chars)
 
-        try:
-            client = OpenAI(api_key=api_key, base_url=base_url)
-            response = client.chat.completions.create(
-                model=model,
-                temperature=0.2,
-                messages=[
-                    {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt_text},
-                ],
-            )
-            summary = response.choices[0].message.content
-            if summary and summary.strip():
-                return summary.strip()
-            last_error = RuntimeError(f"{env_var} returned an empty response")
-        except Exception as error:
-            last_error = error
-            continue
+        for api_key in api_keys:
+            try:
+                client = OpenAI(api_key=api_key, base_url=base_url)
+                response = client.chat.completions.create(
+                    model=model,
+                    temperature=0.2,
+                    messages=[
+                        {"role": "system", "content": SUMMARY_SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt_text},
+                    ],
+                )
+                summary = response.choices[0].message.content
+                if summary and summary.strip():
+                    return summary.strip()
+                last_error = RuntimeError(f"{env_var} returned an empty response")
+            except Exception as error:
+                last_error = error
+                continue  # try the next key for THIS provider before giving up on it
 
     if not tried_any:
         raise ValueError(

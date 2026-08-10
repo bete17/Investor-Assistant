@@ -19,7 +19,7 @@
 # ranges; omit it (or pass an unrecognized sector) to fall back to
 # the general-purpose default ranges.
 
-from sector_profiles import get_ranges_for_sector
+from analytics.sector_profiles import get_ranges_for_sector
 
 
 # ----------------------------------------------------------
