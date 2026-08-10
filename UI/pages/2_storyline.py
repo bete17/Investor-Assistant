@@ -218,18 +218,23 @@ if "active_ticker" not in st.session_state:
 
 st.markdown('<div class="section-label">COMPANY</div>', unsafe_allow_html=True)
 
-search_col, button_col = st.columns([5, 1])
+with st.form("storyline_search", clear_on_submit=False):
+    search_col, button_col = st.columns([5, 1])
 
-with search_col:
-    ticker_input = st.text_input(
-        "Ticker Symbol",
-        value=st.session_state.active_ticker or "AAPL",
-        placeholder="Ticker or company name, e.g. AAPL or Apple",
-        label_visibility="collapsed",
-    ).strip()
+    with search_col:
+        ticker_input = st.text_input(
+            "Ticker Symbol",
+            value=st.session_state.active_ticker or "AAPL",
+            placeholder="Ticker or company name, e.g. AAPL or Apple",
+            label_visibility="collapsed",
+        ).strip()
 
-with button_col:
-    load_clicked = st.button("View Story", use_container_width=True, type="primary")
+    with button_col:
+        load_clicked = st.form_submit_button(
+            "View Story",
+            use_container_width=True,
+            type="primary",
+        )
 
 if load_clicked:
     if not ticker_input:

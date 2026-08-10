@@ -252,42 +252,38 @@ if "compare_tickers" not in st.session_state:
 
 st.markdown('<div class="section-label">SELECT TWO COMPANIES</div>', unsafe_allow_html=True)
 
-input_a, input_b, button_col = st.columns([3, 3, 1])
-
 default_a, default_b = st.session_state.compare_tickers or ("AAPL", "MSFT")
 
-# The button column has no label, so the button sat higher than the two
-# labelled inputs next to it. This previously used a hardcoded
-# <div style='height: 28px'> spacer, which overshot slightly and would
-# drift again on any change to label font-size or Streamlit's padding.
-#
-# Instead, Streamlit's own labels are collapsed and the SAME label
-# element is rendered in all three columns - with non-breaking space as
-# the button column's text. Heights then match by construction rather
-# than by a guessed pixel value, so nothing to re-tune later.
 FIELD_LABEL = '<div class="field-label">{}</div>'
 
-with input_a:
-    st.markdown(FIELD_LABEL.format("Ticker A"), unsafe_allow_html=True)
-    ticker_a_input = st.text_input(
-        "Ticker A",
-        value=default_a,
-        placeholder="e.g. AAPL or Apple",
-        label_visibility="collapsed",
-    ).strip()
+with st.form("compare_search", clear_on_submit=False):
+    input_a, input_b, button_col = st.columns([3, 3, 1])
 
-with input_b:
-    st.markdown(FIELD_LABEL.format("Ticker B"), unsafe_allow_html=True)
-    ticker_b_input = st.text_input(
-        "Ticker B",
-        value=default_b,
-        placeholder="e.g. MSFT or Microsoft",
-        label_visibility="collapsed",
-    ).strip()
+    with input_a:
+        st.markdown(FIELD_LABEL.format("Ticker A"), unsafe_allow_html=True)
+        ticker_a_input = st.text_input(
+            "Ticker A",
+            value=default_a,
+            placeholder="e.g. AAPL or Apple",
+            label_visibility="collapsed",
+        ).strip()
 
-with button_col:
-    st.markdown(FIELD_LABEL.format("&nbsp;"), unsafe_allow_html=True)
-    compare_clicked = st.button("Compare", use_container_width=True, type="primary")
+    with input_b:
+        st.markdown(FIELD_LABEL.format("Ticker B"), unsafe_allow_html=True)
+        ticker_b_input = st.text_input(
+            "Ticker B",
+            value=default_b,
+            placeholder="e.g. MSFT or Microsoft",
+            label_visibility="collapsed",
+        ).strip()
+
+    with button_col:
+        st.markdown(FIELD_LABEL.format("&nbsp;"), unsafe_allow_html=True)
+        compare_clicked = st.form_submit_button(
+            "Compare",
+            use_container_width=True,
+            type="primary",
+        )
 
 if compare_clicked:
 

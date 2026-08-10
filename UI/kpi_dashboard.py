@@ -474,24 +474,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-search_col, button_col = st.columns([5, 1])
+with st.form("company_search", clear_on_submit=False):
+    search_col, button_col = st.columns([5, 1])
 
-with search_col:
+    with search_col:
+        ticker_input = st.text_input(
+            "Ticker Symbol",
+            value=st.session_state.active_ticker or "AAPL",
+            placeholder="Ticker or company name, e.g. AAPL or Apple",
+            label_visibility="collapsed",
+        ).strip()
 
-    ticker_input = st.text_input(
-        "Ticker Symbol",
-        value=st.session_state.active_ticker or "AAPL",
-        placeholder="Ticker or company name, e.g. AAPL or Apple",
-        label_visibility="collapsed",
-    ).strip()
-
-with button_col:
-
-    analyze = st.button(
-        "Analyze",
-        use_container_width=True,
-        type="primary",
-    )
+    with button_col:
+        analyze = st.form_submit_button(
+            "Analyze",
+            use_container_width=True,
+            type="primary",
+        )
 
 if analyze:
 
