@@ -858,3 +858,28 @@ h3 {
         background: rgba(255, 255, 255, 0.06);
     }
 }
+
+/* ==========================================================
+   FIELD LABEL
+   ==========================================================
+   Custom replacement for Streamlit's own widget label, used on the
+   Compare page so that an input column and a button column can be
+   given the SAME label element and therefore align exactly.
+
+   Streamlit's native label height is what a button column lacks, and
+   guessing it with a fixed-pixel spacer drifts whenever Streamlit's
+   padding or font-size changes. Rendering this identical element in
+   every column in the row makes the heights match by construction.
+
+   Sized to match Streamlit's default label so it doesn't look out of
+   place next to labels elsewhere in the app. */
+
+.field-label {
+    font-size: 14px;
+    line-height: 1.6;
+    font-weight: 400;
+    color: var(--text);
+    font-family: var(--sans);
+    margin-bottom: 4px;
+    min-height: 22px;   /* holds its height even when the text is &nbsp; */
+}
