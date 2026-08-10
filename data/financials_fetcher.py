@@ -1,7 +1,10 @@
 import os
 import json
 import time
-import yfinance as yf
+# NOTE: yfinance is imported lazily inside the fetch below - it costs
+# ~1.7s to import, and every page imports this module transitively, so a
+# top-level import delayed each page's first render even when the data
+# was already cached on disk and yfinance was never actually needed.
 
 # Define where our cache files will live
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -62,6 +65,8 @@ def fetch_company_financials(ticker: str) -> dict:
     print(f"🌐 Fetching live financial data for {ticker.upper()} from yfinance...")
     
     # Initialize the yfinance Ticker object
+    import yfinance as yf  # lazy: see note at top of module
+
     stock = yf.Ticker(ticker)
     
     try:

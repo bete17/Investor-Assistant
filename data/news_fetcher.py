@@ -1,4 +1,6 @@
-import yfinance as yf
+# NOTE: yfinance imported lazily inside the fetch - see the same note in
+# financials_fetcher.py. ~1.7s import cost, paid on use rather than on
+# page load.
 import json
 from data.financials_fetcher import is_cache_valid, CACHE_DIR
 
@@ -17,6 +19,8 @@ def fetch_news(ticker: str) -> list:
         with open(f"{CACHE_DIR}/{ticker.upper()}_news.json", "r") as f:
             return json.load(f)
     
+    import yfinance as yf  # lazy: see note at top of module
+
     stock = yf.Ticker(ticker)
     
     try:

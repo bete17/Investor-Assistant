@@ -4,7 +4,11 @@ import os
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from openai import OpenAI
+# NOTE: openai is imported lazily inside the summarization call below.
+# `from openai import OpenAI` costs ~1.7s, and this module is imported by
+# the Storyline page - paying that at import time delayed the page render
+# for every visit, including visits that never call an LLM (e.g. reading
+# an already-cached summary). See _get_openai_class().
 
 from data.storyline_fetcher import CACHE_DIR, fetch_item7, item7_cache_path
 
@@ -125,8 +129,14 @@ def get_item7_llm_text(ticker: str, year: int, force_refresh: bool = False) -> s
     return blocks_to_llm_text(item7["blocks"])
 
 
-def reduce_text(ticker: str, year: int) -> str | None:
-    """Return Item 7 changes versus the prior year, ready for LLM summarization."""
+def reduce_text(ticker: str, year: int) -> tuple[str, bool] | None:
+    """
+    Return (text, is_diff) for LLM summarization, where is_diff is True
+    only when there was a real prior-year filing to diff against and
+    the diff actually contained changes. Callers use is_diff to show
+    users when a summary reflects year-over-year change versus a
+    first-year baseline read.
+    """
     current = load_item7(ticker, year)
     if current is None:
         return None
@@ -134,11 +144,13 @@ def reduce_text(ticker: str, year: int) -> str | None:
     current_text = blocks_to_llm_text(current["blocks"])
     prior = load_item7(ticker, year - 1)
     if prior is None:
-        return current_text
+        return current_text, False
 
     prior_text = blocks_to_llm_text(prior["blocks"])
     diff = text_diff(current_text, prior_text)
-    return diff if diff.strip() else current_text
+    if diff.strip():
+        return diff, True
+    return current_text, False
 
 
 def _truncate_for_llm(text: str, max_chars: int) -> str:
@@ -204,6 +216,8 @@ def summarize_text(text: str) -> str:
 
         for api_key in api_keys:
             try:
+                from openai import OpenAI  # lazy: see note at top of module
+
                 client = OpenAI(api_key=api_key, base_url=base_url)
                 response = client.chat.completions.create(
                     model=model,
@@ -244,12 +258,13 @@ def load_summary_cache(ticker: str, year: int) -> dict | None:
         return json.load(cache_file)
 
 
-def save_summary(ticker: str, year: int, summary: str) -> dict:
-    """Save an Item 7 summary to the local cache."""
+def save_summary(ticker: str, year: int, summary: str, is_diff: bool) -> dict:
+    """Save an Item 7 summary (and whether it reflects a prior-year diff) to the local cache."""
     payload = {
         "ticker": ticker.upper(),
         "year": year,
         "summary": summary,
+        "is_diff": is_diff,
         "summarized_at": datetime.now(timezone.utc).isoformat(),
     }
     with open(summary_cache_path(ticker, year), "w", encoding="utf-8") as cache_file:
@@ -262,11 +277,13 @@ def summarize_item7(ticker: str, year: int, force_refresh: bool = False) -> dict
     if not force_refresh:
         cached = load_summary_cache(ticker, year)
         if cached is not None:
+            cached.setdefault("is_diff", False)  # tolerate summaries cached before is_diff existed
             return cached
 
-    text = reduce_text(ticker, year)
-    if text is None:
+    reduced = reduce_text(ticker, year)
+    if reduced is None:
         return None
+    text, is_diff = reduced
 
     summary = summarize_text(text)
-    return save_summary(ticker, year, summary)
+    return save_summary(ticker, year, summary, is_diff)

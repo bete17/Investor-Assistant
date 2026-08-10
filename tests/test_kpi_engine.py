@@ -12,7 +12,7 @@ Each function is tested for:
 import pytest
 from unittest.mock import patch
 
-from kpi_engine import (
+from analytics.kpi_engine import (
     get_latest_value,
     calculate_net_profit_margin,
     calculate_debt_to_equity,

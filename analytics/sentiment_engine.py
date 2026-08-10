@@ -1,13 +1,40 @@
 import os
 import json
-import nltk
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
-# Ensure VADER lexicon is downloaded
-try:
-    nltk.data.find('sentiment/vader_lexicon.zip')
-except LookupError:
-    nltk.download('vader_lexicon', quiet=True)
+# NOTE: nltk is deliberately NOT imported at module level.
+# Importing nltk costs ~6 seconds, and this module is imported by the
+# Storyline page - so a top-level import meant clicking "storyline"
+# blocked for 6s before Streamlit could draw anything at all. Nothing
+# can be rendered (not even a spinner or skeleton) while a module-level
+# import runs, so the only fix is to defer it to first actual use.
+#
+# The lexicon check moved inside _get_analyzer() for the same reason.
+
+_analyzer = None
+
+
+def _get_analyzer():
+    """
+    Build (once) and return the VADER analyzer, importing nltk on first
+    use rather than at module import time. Cached in a module-level
+    global so the ~6s import and lexicon load are paid at most once per
+    process, not per SentimentEngine instance.
+    """
+    global _analyzer
+
+    if _analyzer is not None:
+        return _analyzer
+
+    import nltk
+    from nltk.sentiment.vader import SentimentIntensityAnalyzer
+
+    try:
+        nltk.data.find("sentiment/vader_lexicon.zip")
+    except LookupError:
+        nltk.download("vader_lexicon", quiet=True)
+
+    _analyzer = SentimentIntensityAnalyzer()
+    return _analyzer
 
 
 class SentimentEngine:
@@ -19,15 +46,24 @@ class SentimentEngine:
         """
         Constructor: Initializes the analyzer instance and VADER engine.
         """
-        # Set default cache directory relative to this file if not provided
+        # Set default cache directory relative to the PROJECT ROOT, not
+        # to this file's folder.
+        #
+        # BUGFIX: this previously resolved to analytics/data/cache/,
+        # because base_dir was this file's own directory (analytics/).
+        # But news_fetcher.py writes to <project_root>/data/cache/, so
+        # load_news_from_cache() was looking in a directory that never
+        # had any news in it - meaning sentiment silently reported
+        # "0 articles / neutral" for every ticker. Same bug class that
+        # was fixed in sector_lookup.py; matching its resolution here.
         if cache_dir is None:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             self.cache_dir = os.path.join(base_dir, "data", "cache")
         else:
             self.cache_dir = cache_dir
 
-        # Initialize the VADER Sentiment Engine once on object creation
-        self.sia = SentimentIntensityAnalyzer()
+        # Analyzer is built lazily on first scoring call - see
+        # _get_analyzer() above for why it isn't constructed here.
 
     def load_news_from_cache(self, ticker: str) -> list:
         """Loads cached news items for a ticker."""
@@ -50,8 +86,8 @@ class SentimentEngine:
         if not headline:
             return 0.0
 
-        # Uses the instance's pre-loaded VADER engine
-        score = self.sia.polarity_scores(headline)
+        # Lazily builds the VADER engine on first use.
+        score = _get_analyzer().polarity_scores(headline)
         return score.get("compound", 0.0)
 
     def generate_aggregate_sentiment_story(self, ticker: str) -> dict:

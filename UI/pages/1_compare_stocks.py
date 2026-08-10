@@ -37,6 +37,7 @@ from analytics.health_score import (
     METRIC_DISPLAY_NAMES,
 )
 from analytics.sector_lookup import get_sector
+from skeletons import skeleton_card, skeleton_chart
 
 # Note: this file does NOT import from kpi_dashboard.py, even
 # though it duplicates load_kpis() below. Importing kpi_dashboard.py
@@ -254,22 +255,37 @@ input_a, input_b, button_col = st.columns([3, 3, 1])
 
 default_a, default_b = st.session_state.compare_tickers or ("AAPL", "MSFT")
 
+# The button column has no label, so the button sat higher than the two
+# labelled inputs next to it. This previously used a hardcoded
+# <div style='height: 28px'> spacer, which overshot slightly and would
+# drift again on any change to label font-size or Streamlit's padding.
+#
+# Instead, Streamlit's own labels are collapsed and the SAME label
+# element is rendered in all three columns - with non-breaking space as
+# the button column's text. Heights then match by construction rather
+# than by a guessed pixel value, so nothing to re-tune later.
+FIELD_LABEL = '<div class="field-label">{}</div>'
+
 with input_a:
+    st.markdown(FIELD_LABEL.format("Ticker A"), unsafe_allow_html=True)
     ticker_a_input = st.text_input(
         "Ticker A",
         value=default_a,
         placeholder="e.g. AAPL",
+        label_visibility="collapsed",
     ).strip().upper()
 
 with input_b:
+    st.markdown(FIELD_LABEL.format("Ticker B"), unsafe_allow_html=True)
     ticker_b_input = st.text_input(
         "Ticker B",
         value=default_b,
         placeholder="e.g. MSFT",
+        label_visibility="collapsed",
     ).strip().upper()
 
 with button_col:
-    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)  # align button with inputs
+    st.markdown(FIELD_LABEL.format("&nbsp;"), unsafe_allow_html=True)
     compare_clicked = st.button("Compare", use_container_width=True, type="primary")
 
 if compare_clicked:
@@ -308,6 +324,18 @@ ticker_a, ticker_b = tickers
 # LOAD DATA FOR BOTH TICKERS
 # ==========================================================
 
+loading_slot = st.empty()
+
+with loading_slot.container():
+    st.markdown('<div class="large-space"></div>', unsafe_allow_html=True)
+    skeleton_col_a, skeleton_col_b = st.columns(2)
+    with skeleton_col_a:
+        skeleton_card()
+    with skeleton_col_b:
+        skeleton_card()
+    st.markdown('<div class="large-space"></div>', unsafe_allow_html=True)
+    skeleton_chart()
+
 with st.spinner(f"Comparing {ticker_a} and {ticker_b}..."):
 
     try:
@@ -321,8 +349,11 @@ with st.spinner(f"Comparing {ticker_a} and {ticker_b}..."):
         sector_b = load_sector(ticker_b)
 
     except Exception as error:
+        loading_slot.empty()
         st.error(f"Unable to load comparison: {error}")
         st.stop()
+
+loading_slot.empty()
 
 if not kpis_a:
     st.error(f"No KPI data was found for {ticker_a}.")

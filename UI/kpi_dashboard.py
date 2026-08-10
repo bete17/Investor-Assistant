@@ -29,6 +29,8 @@ if str(PROJECT_ROOT) not in sys.path:
 # ==========================================================
 
 from analytics.kpi_engine import calculate_kpis
+from analytics.health_score import calculate_health_score, get_score_label
+from analytics.sector_lookup import get_sector
 
 from data.financials_fetcher import fetch_company_financials
 from utils import (
@@ -37,6 +39,7 @@ from utils import (
     format_money,
     is_valid_ticker,
 )
+from skeletons import skeleton_card, skeleton_card_row, skeleton_chart
 
 
 # ==========================================================
@@ -76,6 +79,11 @@ def load_kpis(ticker):
 @st.cache_data(ttl=300, show_spinner=False)
 def load_financials(ticker):
     return fetch_company_financials(ticker)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)  # sector changes rarely, cache longer
+def load_sector(ticker):
+    return get_sector(ticker)
 
 
 # ==========================================================
@@ -225,6 +233,38 @@ def metric_card(
         {status}
     </div>
     <div class="kpi-description">{html.escape(str(description))}</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def health_score_card(score, label, css_class, sector):
+    """
+    Render the headline sector-aware Health Score, matching the card
+    used on Compare Stocks. This is the single-number synthesis of
+    the KPIs above - it's shown here on the main dashboard too, not
+    just on Compare Stocks, since most people never leave this page.
+    """
+
+    display_score = "N/A" if score is None else str(score)
+    sector_note = (
+        f"Weighted score benchmarked against {sector} sector norms."
+        if sector
+        else "Weighted score benchmarked against a general-purpose "
+        "range (sector unknown for this ticker)."
+    )
+
+    st.markdown(
+        f"""
+<div class="kpi-card">
+    <div class="kpi-title">FINANCIAL HEALTH SCORE</div>
+    <div class="kpi-value">{html.escape(display_score)}</div>
+    <div class="kpi-status {css_class}">
+        <span class="status-dot"></span>
+        {label}
+    </div>
+    <div class="kpi-description">{html.escape(sector_note)}</div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -496,15 +536,43 @@ if not ticker:
 # LOAD COMPANY DATA
 # ==========================================================
 
+# Render the page's real shape as skeletons while data loads, instead
+# of leaving the area blank behind a lone spinner. The placeholder is
+# cleared as soon as the fetch finishes, and the real sections below
+# render into the same layout - so nothing jumps.
+loading_slot = st.empty()
+
+with loading_slot.container():
+    st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
+    skeleton_card()
+    st.markdown('<div class="large-space"></div>', unsafe_allow_html=True)
+    skeleton_card_row(4)
+    st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
+    skeleton_card_row(3)
+    st.markdown('<div class="large-space"></div>', unsafe_allow_html=True)
+    chart_skeleton_1, chart_skeleton_2 = st.columns(2)
+    with chart_skeleton_1:
+        skeleton_chart()
+    with chart_skeleton_2:
+        skeleton_chart()
+
 with st.spinner(f"Analyzing {ticker}..."):
 
     try:
         kpis = load_kpis(ticker)
         financial_data = load_financials(ticker)
 
+        # Sector lookup failing shouldn't block the whole dashboard -
+        # calculate_health_score() falls back to default ranges when
+        # sector is None.
+        sector = load_sector(ticker)
+
     except Exception as error:
+        loading_slot.empty()
         st.error(f"Unable to analyze {ticker}: {error}")
         st.stop()
+
+loading_slot.empty()
 
 
 # ==========================================================
@@ -545,6 +613,22 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
+
+# ==========================================================
+# HEALTH SCORE
+# ==========================================================
+# The single-number synthesis of the KPIs below, benchmarked against
+# this company's own sector. Shown up top since it's the fastest
+# "should I even keep looking at this" signal - the detailed KPIs
+# further down are where that number comes from, for anyone who
+# wants to see the breakdown.
+
+score, score_breakdown = calculate_health_score(kpis, sector=sector)
+score_label, score_class = get_score_label(score)
+
+st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
+health_score_card(score, score_label, score_class, sector)
 
 
 # ==========================================================

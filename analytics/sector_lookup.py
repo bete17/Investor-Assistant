@@ -15,14 +15,47 @@ import json
 import os
 from datetime import datetime, timezone
 
-try:
-    import yfinance as yf
-    _YFINANCE_AVAILABLE = True
-except ImportError:
-    _YFINANCE_AVAILABLE = False
+# PERFORMANCE NOTE: yfinance is imported lazily inside get_sector(),
+# NOT at module level.
+#
+# This module previously did `try: import yfinance` at import time.
+# Because three of the four pages import sector_lookup, and importing
+# yfinance costs ~1.1s, every one of those pages blocked for over a
+# second before Streamlit could draw anything - and nothing can be
+# rendered (no spinner, no skeleton) while a module-level import runs.
+#
+# Worth noting how this hid: it was indented inside a try block, so it
+# didn't match a grep for top-level `import yfinance` lines and survived
+# an earlier pass that made the other modules' imports lazy. Measuring
+# each module in isolation is what actually found it.
+#
+# The import is also genuinely unnecessary most of the time: a warm
+# 24-hour disk cache means get_sector() returns before ever touching
+# yfinance.
 
 
-CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "cache")
+def _import_yfinance():
+    """
+    Import yfinance on demand. Returns the module, or None if it isn't
+    installed - preserving the original try/except ImportError behavior
+    so a missing yfinance degrades to "no sector" rather than crashing.
+    """
+    try:
+        import yfinance as yf
+
+        return yf
+    except ImportError:
+        return None
+
+
+# Same cache dir as financials_fetcher.py / news_fetcher.py /
+# storyline_fetcher.py: <project_root>/data/cache. This file lives in
+# analytics/, so it has to go up one level first - previously this
+# computed analytics/data/cache/ instead, a silent mismatch that also
+# meant these cache files weren't covered by the top-level
+# "data/cache/" .gitignore rule and ended up committed to the repo.
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CACHE_DIR = os.path.join(BASE_DIR, "data", "cache")
 CACHE_TTL_SECONDS = 24 * 60 * 60  # sector reassignments are rare; 24h is plenty
 
 
@@ -98,7 +131,10 @@ def get_sector(ticker, force_refresh=False):
         if cached is not None:
             return cached.get("sector")
 
-    if not _YFINANCE_AVAILABLE:
+    # Only now - after a cache miss - is yfinance actually needed.
+    yf = _import_yfinance()
+
+    if yf is None:
         return None
 
     try:
