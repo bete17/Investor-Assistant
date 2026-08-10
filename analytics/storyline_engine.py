@@ -4,7 +4,11 @@ import os
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from openai import OpenAI
+# NOTE: openai is imported lazily inside the summarization call below.
+# `from openai import OpenAI` costs ~1.7s, and this module is imported by
+# the Storyline page - paying that at import time delayed the page render
+# for every visit, including visits that never call an LLM (e.g. reading
+# an already-cached summary). See _get_openai_class().
 
 from data.storyline_fetcher import CACHE_DIR, fetch_item7, item7_cache_path
 
@@ -212,6 +216,8 @@ def summarize_text(text: str) -> str:
 
         for api_key in api_keys:
             try:
+                from openai import OpenAI  # lazy: see note at top of module
+
                 client = OpenAI(api_key=api_key, base_url=base_url)
                 response = client.chat.completions.create(
                     model=model,

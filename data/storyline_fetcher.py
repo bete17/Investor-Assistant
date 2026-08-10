@@ -31,23 +31,60 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 #   EDGAR_IDENTITY="Jane Doe jane.doe@example.com"
 
 
-def _configure_edgar_identity() -> None:
+# PERFORMANCE NOTE: this is split into a cheap check that runs at import
+# time and an expensive one that runs on first fetch.
+#
+# `import edgar` costs ~14.5 SECONDS. This module previously called
+# set_identity() (and therefore imported edgar) at module level, which
+# meant clicking the Storyline page blocked for ~14.5s before Streamlit
+# could render anything at all - no spinner, no skeleton, nothing, since
+# no UI can be drawn while a module-level import is running.
+#
+# Reading the env var, by contrast, is free. So the validation stays
+# eager (you still find out immediately if EDGAR_IDENTITY is missing,
+# rather than after picking a ticker), while the edgar import and
+# set_identity() call are deferred to the first actual filing fetch.
+
+_MISSING_IDENTITY_MESSAGE = (
+    "EDGAR_IDENTITY is not set. SEC EDGAR requires every automated "
+    "caller to identify itself with a real name and email address. "
+    "Add EDGAR_IDENTITY=\"Your Name your.email@example.com\" to your "
+    ".env file before fetching filings."
+)
+
+_identity_configured = False
+
+
+def _validate_edgar_identity() -> str:
+    """Cheap check - no edgar import. Raises if EDGAR_IDENTITY is unusable."""
     identity = os.getenv("EDGAR_IDENTITY")
 
     if not identity or not identity.strip():
-        raise RuntimeError(
-            "EDGAR_IDENTITY is not set. SEC EDGAR requires every automated "
-            "caller to identify itself with a real name and email address. "
-            "Add EDGAR_IDENTITY=\"Your Name your.email@example.com\" to your "
-            ".env file before fetching filings."
-        )
+        raise RuntimeError(_MISSING_IDENTITY_MESSAGE)
+
+    return identity.strip()
+
+
+def _configure_edgar_identity() -> None:
+    """
+    Register the identity with edgartools, importing it on first use.
+    Idempotent - the ~14.5s import is paid at most once per process.
+    """
+    global _identity_configured
+
+    if _identity_configured:
+        return
+
+    identity = _validate_edgar_identity()
 
     from edgar import set_identity
 
-    set_identity(identity.strip())
+    set_identity(identity)
+    _identity_configured = True
 
 
-_configure_edgar_identity()
+# Eager validation only - deliberately does NOT import edgar.
+_validate_edgar_identity()
 
 ITEM7_HEADER = re.compile(
     r"^\s*item\s*7[\.\:\-\s].*(?:management|discussion|analysis|md\s*&\s*a|financial\s+condition|results\s+of\s+operations)",
@@ -68,6 +105,10 @@ def get_tenK_filing(ticker: str, year: int):
     Returns:
         The edgartools filing object for that year's 10-K, or None if not found.
     """
+    # Registers identity with edgartools and pays the (one-time) edgar
+    # import cost here, on first actual fetch, rather than at page load.
+    _configure_edgar_identity()
+
     from edgar import Company
 
     company = Company(ticker)
