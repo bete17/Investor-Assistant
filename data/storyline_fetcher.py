@@ -3,19 +3,51 @@ Fetch SEC 10-K filings, extract Item 7 (MD&A), and cache structured blocks local
 
 See tests/test_storyline_fetcher.py for the behaviors this module must support.
 """
-from edgar import set_identity
-set_identity("Name Lastname namelastname@gmail.com")
-
 import json
 import os
 import re
 from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup, NavigableString, Tag
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE_DIR = os.path.join(BASE_DIR, "data", "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
+
+# ==========================================================
+# SEC EDGAR IDENTITY
+# ==========================================================
+# SEC's fair-access policy requires every automated caller to
+# identify itself with a real name and email in every request
+# (https://www.sec.gov/os/webmaster-faq#developers). Submitting a
+# placeholder violates that policy and risks getting the calling
+# IP rate-limited or blocked outright - so this fails loudly at
+# import time instead of silently sending SEC a fake identity.
+#
+# Set in your .env file, e.g.:
+#   EDGAR_IDENTITY="Jane Doe jane.doe@example.com"
+
+
+def _configure_edgar_identity() -> None:
+    identity = os.getenv("EDGAR_IDENTITY")
+
+    if not identity or not identity.strip():
+        raise RuntimeError(
+            "EDGAR_IDENTITY is not set. SEC EDGAR requires every automated "
+            "caller to identify itself with a real name and email address. "
+            "Add EDGAR_IDENTITY=\"Your Name your.email@example.com\" to your "
+            ".env file before fetching filings."
+        )
+
+    from edgar import set_identity
+
+    set_identity(identity.strip())
+
+
+_configure_edgar_identity()
 
 ITEM7_HEADER = re.compile(
     r"^\s*item\s*7[\.\:\-\s].*(?:management|discussion|analysis|md\s*&\s*a|financial\s+condition|results\s+of\s+operations)",

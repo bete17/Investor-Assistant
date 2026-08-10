@@ -22,7 +22,14 @@ except ImportError:
     _YFINANCE_AVAILABLE = False
 
 
-CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "cache")
+# Same cache dir as financials_fetcher.py / news_fetcher.py /
+# storyline_fetcher.py: <project_root>/data/cache. This file lives in
+# analytics/, so it has to go up one level first - previously this
+# computed analytics/data/cache/ instead, a silent mismatch that also
+# meant these cache files weren't covered by the top-level
+# "data/cache/" .gitignore rule and ended up committed to the repo.
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CACHE_DIR = os.path.join(BASE_DIR, "data", "cache")
 CACHE_TTL_SECONDS = 24 * 60 * 60  # sector reassignments are rare; 24h is plenty
 
 

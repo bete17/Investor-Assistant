@@ -27,6 +27,7 @@ from analytics.storyline_engine import summarize_item7
 from data.news_fetcher import fetch_news
 from analytics.sentiment_engine import SentimentEngine
 from utils import is_valid_ticker
+from skeletons import skeleton_card, skeleton_bullets
 
 # ==========================================================
 # PAGE CONFIGURATION
@@ -98,16 +99,35 @@ def summary_to_bullets(summary_text):
     return lines
 
 
-def timeline_entry(year, summary_text):
-    """Render one year's card: year marker + full bullet summary, always visible."""
+def timeline_entry(year, summary_text, is_diff):
+    """Render one year's card: year marker + full bullet summary, always visible.
+
+    is_diff flags whether this summary was generated FROM a diff against
+    the prior year's filing (the app's actual differentiator - this is
+    management's own account of what changed, not just what they said
+    this year) versus a first-year baseline read with nothing to
+    compare against yet.
+    """
 
     bullets = summary_to_bullets(summary_text)
     bullets_html = "".join(f"<li>{html.escape(b)}</li>" for b in bullets)
+
+    if is_diff:
+        badge_html = (
+            '<span class="story-diff-badge story-diff-badge-diff">'
+            "&#8593; Changed vs. prior year</span>"
+        )
+    else:
+        badge_html = (
+            '<span class="story-diff-badge story-diff-badge-baseline">'
+            "First year on record</span>"
+        )
 
     st.markdown(
         f"""
 <div class="story-year-marker">
     <div class="story-year">{year}</div>
+    {badge_html}
 </div>
 <div class="kpi-card">
     <ul class="story-bullets">
@@ -252,11 +272,18 @@ st.markdown('<div class="large-space"></div>', unsafe_allow_html=True)
 st.markdown('<div class="section-label">RECENT SENTIMENT</div>', unsafe_allow_html=True)
 st.caption("Tone of recent news headlines, scored automatically.")
 
+sentiment_slot = st.empty()
+
+with sentiment_slot.container():
+    skeleton_card()
+
 with st.spinner(f"Checking recent news for {ticker}..."):
     try:
         sentiment = load_sentiment(ticker)
+        sentiment_slot.empty()
         sentiment_card(sentiment)
     except Exception as error:
+        sentiment_slot.empty()
         st.error(f"Unable to load sentiment: {error}")
 
 # ==========================================================
@@ -288,25 +315,31 @@ selected_year = st.segmented_control(
     key="storyline_selected_year",
 )
 
-# Show which years are already cached this session, so the user
-# knows which clicks are "free" vs. which will trigger a new call.
-loaded_years = [
-    year for year in years
-    if load_year_summary.__wrapped__ is not None  # placeholder, replaced below
-]
-
+# Whether this year was already loaded earlier in the session -
+# session_state.storyline_loaded_years is the source of truth for
+# that (populated below each time load_year_summary succeeds), so
+# this just checks membership rather than recomputing anything.
 already_loaded = selected_year in st.session_state.storyline_loaded_years
 
 st.session_state.storyline_loading = True
 spinner_text = f"Loading {selected_year} for {ticker}..." if not already_loaded else f"Fetching {selected_year} (cached)..."
+
+story_slot = st.empty()
+
+with story_slot.container():
+    skeleton_bullets(7)
+
 with st.spinner(spinner_text):
     try:
         result = load_year_summary(ticker, selected_year)
         st.session_state.storyline_loaded_years.add(selected_year)
     except Exception as error:
+        story_slot.empty()
         st.error(f"Unable to load {selected_year}: {error}")
         result = None
 st.session_state.storyline_loading = False
+
+story_slot.empty()
 
 if st.session_state.storyline_loaded_years:
     loaded_str = ", ".join(str(y) for y in sorted(st.session_state.storyline_loaded_years, reverse=True))
@@ -315,7 +348,11 @@ if st.session_state.storyline_loaded_years:
 if result is None:
     timeline_gap(selected_year)
 else:
-    timeline_entry(selected_year, result.get("summary", ""))
+    timeline_entry(
+        selected_year,
+        result.get("summary", ""),
+        result.get("is_diff", False),
+    )
 
 # ==========================================================
 # DISCLAIMER

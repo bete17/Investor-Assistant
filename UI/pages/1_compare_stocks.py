@@ -37,6 +37,7 @@ from analytics.health_score import (
     METRIC_DISPLAY_NAMES,
 )
 from analytics.sector_lookup import get_sector
+from skeletons import skeleton_card, skeleton_chart
 
 # Note: this file does NOT import from kpi_dashboard.py, even
 # though it duplicates load_kpis() below. Importing kpi_dashboard.py
@@ -308,6 +309,18 @@ ticker_a, ticker_b = tickers
 # LOAD DATA FOR BOTH TICKERS
 # ==========================================================
 
+loading_slot = st.empty()
+
+with loading_slot.container():
+    st.markdown('<div class="large-space"></div>', unsafe_allow_html=True)
+    skeleton_col_a, skeleton_col_b = st.columns(2)
+    with skeleton_col_a:
+        skeleton_card()
+    with skeleton_col_b:
+        skeleton_card()
+    st.markdown('<div class="large-space"></div>', unsafe_allow_html=True)
+    skeleton_chart()
+
 with st.spinner(f"Comparing {ticker_a} and {ticker_b}..."):
 
     try:
@@ -321,8 +334,11 @@ with st.spinner(f"Comparing {ticker_a} and {ticker_b}..."):
         sector_b = load_sector(ticker_b)
 
     except Exception as error:
+        loading_slot.empty()
         st.error(f"Unable to load comparison: {error}")
         st.stop()
+
+loading_slot.empty()
 
 if not kpis_a:
     st.error(f"No KPI data was found for {ticker_a}.")

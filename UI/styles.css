@@ -43,6 +43,37 @@ header {
     display: none;
 }
 
+/* Streamlit's built-in top-right status widget - the running-person
+   icon + "RUNNING" badge. Its styling isn't themeable (it's internal
+   to Streamlit), and a jogging figure reads as fitness-tracker, not
+   financial analysis. Hidden because loading state is now communicated
+   in-context instead: skeleton placeholders in the actual content
+   area, plus a determinate progress bar on the Discover page.
+
+   Multiple selectors + !important on purpose: the test id for this
+   widget has changed across Streamlit versions, and Streamlit's own
+   styles will win against a bare `display: none` in some of them.
+   Casting a wide net here is more robust than pinning one selector.
+
+   TRADEOFF: this also hides the "Stop" button that appears in that
+   widget during a long run. That's acceptable here because the app's
+   slow operations are bounded (a fixed candidate pool, a single LLM
+   call) rather than open-ended - but if you ever add a genuinely
+   long-running or cancellable operation, reconsider this rule. */
+[data-testid="stStatusWidget"],
+[data-testid="stStatusWidget"] *,
+div[class*="StatusWidget"],
+span[class*="StatusWidget"],
+[data-testid="stToolbarActions"],
+[data-testid="stHeader"] [data-testid="stStatusWidget"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    width: 0 !important;
+    pointer-events: none !important;
+}
+
 /* ---------- Base typography ---------- */
 /* Icon-bearing spans (Material Symbols ligatures, header-anchor
    links, expander chevrons) are excluded from the base rule up
@@ -563,6 +594,28 @@ h3 {
     font-family: var(--mono);
 }
 
+.story-diff-badge {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    font-family: var(--mono);
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+}
+
+.story-diff-badge-diff {
+    color: #10B981;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.story-diff-badge-baseline {
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--line);
+}
+
 .story-year-marker-empty {
     border-bottom: 1px dashed var(--line);
 }
@@ -658,4 +711,150 @@ h3 {
 
 .section-label {
     margin: 14px 0 6px 0;
+}
+/* ==========================================================
+   DISCOVER PAGE - RANKED POOL ROWS
+   ==========================================================
+   Compact leaderboard rows for the full ranked candidate pool.
+   Deliberately denser than .kpi-card: at 16 candidates, full-size
+   cards would be an unreasonable scroll, so only the top few get
+   the card treatment and the rest use these. */
+
+.discover-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 6px;
+}
+
+.discover-rank {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-muted);
+    min-width: 32px;
+}
+
+.discover-row-ticker {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 64px;
+}
+
+.discover-row-score {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text);
+    min-width: 52px;
+}
+
+/* Overrides .kpi-status's card-oriented block layout so the status
+   pill sits inline within the row instead of stacking. */
+.discover-row-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 11px;
+    min-width: 96px;
+}
+
+.discover-row-sector {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--sans);
+    margin-left: auto;
+}
+
+/* ==========================================================
+   LOADING SKELETONS
+   ==========================================================
+   Ghost placeholders shown while data is being fetched. Sized to
+   match the real elements they stand in for (.kpi-card padding,
+   .kpi-title / .kpi-value / .kpi-description line heights) so
+   swapping skeleton -> real content doesn't shift the layout.
+
+   The shimmer is a gradient swept across each bar. It respects
+   prefers-reduced-motion below, since a constantly-animating page
+   is a genuine accessibility problem for some people. */
+
+.skeleton-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    height: 100%;
+}
+
+.skeleton-bar {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.04) 25%,
+        rgba(255, 255, 255, 0.09) 37%,
+        rgba(255, 255, 255, 0.04) 63%
+    );
+    background-size: 400% 100%;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+    border-radius: 3px;
+}
+
+@keyframes skeleton-shimmer {
+    0%   { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+}
+
+/* Mirrors .kpi-title: 10.5px text + 6px margin */
+.skeleton-title {
+    height: 9px;
+    width: 45%;
+    margin-bottom: 10px;
+}
+
+/* Mirrors .kpi-value: 22px mono figure */
+.skeleton-value {
+    height: 22px;
+    width: 62%;
+    margin-bottom: 10px;
+}
+
+/* Mirrors the .kpi-status pill */
+.skeleton-status {
+    height: 16px;
+    width: 38%;
+    border-radius: 999px;
+    margin-bottom: 10px;
+}
+
+/* Mirrors .kpi-description's two wrapped lines */
+.skeleton-line {
+    height: 8px;
+    margin-bottom: 5px;
+}
+
+.skeleton-line.short {
+    width: 70%;
+}
+
+/* Skeleton stand-in for a Plotly chart block */
+.skeleton-chart {
+    height: 390px;
+    border-radius: var(--radius);
+}
+
+/* Skeleton stand-in for a storyline bullet list */
+.skeleton-bullet {
+    height: 8px;
+    margin-bottom: 9px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeleton-bar {
+        animation: none;
+        background: rgba(255, 255, 255, 0.06);
+    }
 }
