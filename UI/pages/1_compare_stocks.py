@@ -37,6 +37,7 @@ from analytics.health_score import (
     METRIC_DISPLAY_NAMES,
 )
 from analytics.sector_lookup import get_sector
+from data.ticker_fetcher import find_valid_ticker
 from skeletons import skeleton_card, skeleton_chart
 
 # Note: this file does NOT import from kpi_dashboard.py, even
@@ -271,18 +272,18 @@ with input_a:
     ticker_a_input = st.text_input(
         "Ticker A",
         value=default_a,
-        placeholder="e.g. AAPL",
+        placeholder="e.g. AAPL or Apple",
         label_visibility="collapsed",
-    ).strip().upper()
+    ).strip()
 
 with input_b:
     st.markdown(FIELD_LABEL.format("Ticker B"), unsafe_allow_html=True)
     ticker_b_input = st.text_input(
         "Ticker B",
         value=default_b,
-        placeholder="e.g. MSFT",
+        placeholder="e.g. MSFT or Microsoft",
         label_visibility="collapsed",
-    ).strip().upper()
+    ).strip()
 
 with button_col:
     st.markdown(FIELD_LABEL.format("&nbsp;"), unsafe_allow_html=True)
@@ -291,14 +292,24 @@ with button_col:
 if compare_clicked:
 
     if not ticker_a_input or not ticker_b_input:
-        st.warning("Please enter both ticker symbols.")
+        st.warning("Please enter both companies.")
         st.stop()
 
-    if ticker_a_input == ticker_b_input:
-        st.warning("Please enter two different tickers.")
+    resolved_a = find_valid_ticker(ticker_a_input)
+    if not resolved_a:
+        st.error(f"Couldn't find a match for '{ticker_a_input}'.")
         st.stop()
 
-    st.session_state.compare_tickers = (ticker_a_input, ticker_b_input)
+    resolved_b = find_valid_ticker(ticker_b_input)
+    if not resolved_b:
+        st.error(f"Couldn't find a match for '{ticker_b_input}'.")
+        st.stop()
+
+    if resolved_a == resolved_b:
+        st.warning("Please enter two different companies.")
+        st.stop()
+
+    st.session_state.compare_tickers = (resolved_a, resolved_b)
 
 tickers = st.session_state.compare_tickers
 

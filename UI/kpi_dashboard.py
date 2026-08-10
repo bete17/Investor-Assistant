@@ -33,11 +33,11 @@ from analytics.health_score import calculate_health_score, get_score_label
 from analytics.sector_lookup import get_sector
 
 from data.financials_fetcher import fetch_company_financials
+from data.ticker_fetcher import find_valid_ticker
 from utils import (
     format_percent,
     format_ratio,
     format_money,
-    is_valid_ticker,
 )
 from skeletons import skeleton_card, skeleton_card_row, skeleton_chart
 
@@ -481,15 +481,9 @@ with search_col:
     ticker_input = st.text_input(
         "Ticker Symbol",
         value=st.session_state.active_ticker or "AAPL",
-        placeholder="Enter ticker symbol, e.g. AAPL",
+        placeholder="Ticker or company name, e.g. AAPL or Apple",
         label_visibility="collapsed",
-    )
-
-    ticker_input = ticker_input.strip().upper()
-
-    if ticker_input and not is_valid_ticker(ticker_input):
-        st.error("Invalid ticker format.")
-        st.stop()
+    ).strip()
 
 with button_col:
 
@@ -502,10 +496,15 @@ with button_col:
 if analyze:
 
     if not ticker_input:
-        st.warning("Please enter a ticker symbol.")
+        st.warning("Please enter a ticker symbol or company name.")
         st.stop()
 
-    st.session_state.active_ticker = ticker_input
+    resolved = find_valid_ticker(ticker_input)
+    if not resolved:
+        st.error("Couldn't find a matching company. Try a ticker (AAPL) or name (Apple).")
+        st.stop()
+
+    st.session_state.active_ticker = resolved
 
 ticker = st.session_state.active_ticker
 
