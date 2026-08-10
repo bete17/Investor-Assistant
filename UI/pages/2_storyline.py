@@ -26,7 +26,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from analytics.storyline_engine import summarize_item7
 from data.news_fetcher import fetch_news
 from analytics.sentiment_engine import SentimentEngine
-from utils import is_valid_ticker
+from data.ticker_fetcher import find_valid_ticker
 from skeletons import skeleton_card, skeleton_bullets
 
 # ==========================================================
@@ -218,28 +218,35 @@ if "active_ticker" not in st.session_state:
 
 st.markdown('<div class="section-label">COMPANY</div>', unsafe_allow_html=True)
 
-search_col, button_col = st.columns([5, 1])
+with st.form("storyline_search", clear_on_submit=False):
+    search_col, button_col = st.columns([5, 1])
 
-with search_col:
-    ticker_input = st.text_input(
-        "Ticker Symbol",
-        value=st.session_state.active_ticker or "AAPL",
-        placeholder="Enter ticker symbol, e.g. AAPL",
-        label_visibility="collapsed",
-    ).strip().upper()
+    with search_col:
+        ticker_input = st.text_input(
+            "Ticker Symbol",
+            value=st.session_state.active_ticker or "AAPL",
+            placeholder="Ticker or company name, e.g. AAPL or Apple",
+            label_visibility="collapsed",
+        ).strip()
 
-    if ticker_input and not is_valid_ticker(ticker_input):
-        st.error("Invalid ticker format.")
-        st.stop()
-
-with button_col:
-    load_clicked = st.button("View Story", use_container_width=True, type="primary")
+    with button_col:
+        load_clicked = st.form_submit_button(
+            "View Story",
+            use_container_width=True,
+            type="primary",
+        )
 
 if load_clicked:
     if not ticker_input:
-        st.warning("Please enter a ticker symbol.")
+        st.warning("Please enter a ticker symbol or company name.")
         st.stop()
-    st.session_state.active_ticker = ticker_input
+
+    resolved = find_valid_ticker(ticker_input)
+    if not resolved:
+        st.error("Couldn't find a matching company. Try a ticker (AAPL) or name (Apple).")
+        st.stop()
+
+    st.session_state.active_ticker = resolved
 
 ticker = st.session_state.active_ticker
 
