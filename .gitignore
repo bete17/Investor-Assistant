@@ -220,3 +220,6 @@ __marimo__/
 #venv
 .venv/
 data/cache/
+
+# Local user state - one person's watchlist is not part of the project.
+data/watchlist.json

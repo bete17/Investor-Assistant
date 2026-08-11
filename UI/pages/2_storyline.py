@@ -26,6 +26,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from analytics.storyline_engine import summarize_item7
 from data.news_fetcher import fetch_news
 from analytics.sentiment_engine import SentimentEngine
+from data.storyline_fetcher import has_edgar_identity
 from data.ticker_fetcher import find_valid_ticker
 from skeletons import skeleton_card, skeleton_bullets
 
@@ -204,6 +205,51 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
+
+# ==========================================================
+# SETUP CHECK
+# ==========================================================
+# This is the only page that needs configuration before it can do
+# anything: the SEC requires every automated caller to identify
+# itself. Previously a missing identity crashed the page with a raw
+# Python traceback on import - the instructions were in the exception
+# text, but a stack trace is not how you tell someone to set an
+# environment variable.
+
+if not has_edgar_identity():
+
+    st.warning("**One-time setup needed for this page.**", icon="⚙️")
+
+    st.markdown(
+        """
+The SEC's fair-access policy requires every automated caller to identify
+itself with a real name and email address, so filings can't be fetched
+without one. This is free and takes a minute.
+
+Create a `.env` file in the project root containing:
+
+```
+EDGAR_IDENTITY="Your Name your.email@example.com"
+```
+
+Then restart the app.
+
+Summarizing filings additionally needs one LLM API key — `GEMINI_API_KEY`,
+`CEREBRAS_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` or `COHERE_API_KEY`.
+The first one that works is used, and Gemini's free tier is the easiest
+place to start.
+"""
+    )
+
+    st.info(
+        "The KPI Dashboard, Compare Stocks and Discover pages need no keys "
+        "at all — they work right now.",
+        icon="💡",
+    )
+
+    st.stop()
+
 
 # ==========================================================
 # SESSION STATE

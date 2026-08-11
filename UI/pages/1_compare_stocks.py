@@ -37,6 +37,7 @@ from analytics.health_score import (
     METRIC_DISPLAY_NAMES,
 )
 from analytics.sector_lookup import get_sector
+from data.market_fetcher import fetch_market_snapshot
 from data.ticker_fetcher import find_valid_ticker
 from skeletons import skeleton_card, skeleton_chart
 
@@ -82,6 +83,11 @@ def load_kpis(ticker):
 @st.cache_data(ttl=3600, show_spinner=False)  # sector changes rarely, cache longer
 def load_sector(ticker):
     return get_sector(ticker)
+
+
+@st.cache_data(ttl=300, show_spinner=False)  # quotes go stale fast
+def load_market(ticker):
+    return fetch_market_snapshot(ticker)
 
 
 # ==========================================================
@@ -193,6 +199,13 @@ def comparison_row(label, format_fn, raw_a, raw_b, higher_is_better=True):
     """
     One row of the side-by-side comparison table, with the better
     value highlighted.
+
+    Pass higher_is_better=None for metrics where neither direction is
+    simply "better" and no winner should be marked. Valuation
+    multiples are the case that matters: a lower P/E usually reflects
+    lower expected growth rather than a bargain, and a NEGATIVE P/E
+    means the company has no profits at all - which would take the
+    "lowest wins" crown while describing the worst outcome on the row.
     """
 
     col_label, col_a, col_b = st.columns([2, 1, 1])
@@ -203,7 +216,12 @@ def comparison_row(label, format_fn, raw_a, raw_b, higher_is_better=True):
     a_wins = False
     b_wins = False
 
-    if raw_a is not None and raw_b is not None and raw_a != raw_b:
+    if (
+        higher_is_better is not None
+        and raw_a is not None
+        and raw_b is not None
+        and raw_a != raw_b
+    ):
         if higher_is_better:
             a_wins = raw_a > raw_b
             b_wins = raw_b > raw_a
@@ -355,6 +373,15 @@ with st.spinner(f"Comparing {ticker_a} and {ticker_b}..."):
         sector_a = load_sector(ticker_a)
         sector_b = load_sector(ticker_b)
 
+        # Valuation is supplementary here - the fundamentals comparison
+        # stands on its own if quotes are unavailable, so a failed
+        # market fetch degrades to empty rather than blocking the page.
+        try:
+            market_a = load_market(ticker_a)
+            market_b = load_market(ticker_b)
+        except Exception:  # noqa: BLE001 - yfinance raises many shapes
+            market_a, market_b = {}, {}
+
     except Exception as error:
         loading_slot.empty()
         st.error(f"Unable to load comparison: {error}")
@@ -435,13 +462,32 @@ with table_header_b:
 with table_header_c:
     st.markdown(f"<div class='compare-col-header'>{html.escape(ticker_b)}</div>", unsafe_allow_html=True)
 
-comparison_row("Net Profit Margin", format_percent, kpis_a.get("net_profit_margin"), kpis_b.get("net_profit_margin"))
-comparison_row("Return on Equity", format_percent, kpis_a.get("roe"), kpis_b.get("roe"))
-comparison_row("Revenue Growth", format_percent, kpis_a.get("revenue_growth"), kpis_b.get("revenue_growth"))
-comparison_row("Earnings Growth", format_percent, kpis_a.get("earnings_growth"), kpis_b.get("earnings_growth"))
+comparison_row("Net Profit Margin (TTM)", format_percent, kpis_a.get("net_profit_margin"), kpis_b.get("net_profit_margin"))
+comparison_row("Return on Equity (TTM)", format_percent, kpis_a.get("roe"), kpis_b.get("roe"))
+comparison_row("Revenue Growth (YoY)", format_percent, kpis_a.get("revenue_growth"), kpis_b.get("revenue_growth"))
+comparison_row("Earnings Growth (YoY)", format_percent, kpis_a.get("earnings_growth"), kpis_b.get("earnings_growth"))
 comparison_row("Debt / Equity", format_ratio, kpis_a.get("debt_to_equity"), kpis_b.get("debt_to_equity"), higher_is_better=False)
 comparison_row("Current Ratio", format_ratio, kpis_a.get("current_ratio"), kpis_b.get("current_ratio"))
-comparison_row("Free Cash Flow", format_money, kpis_a.get("free_cash_flow"), kpis_b.get("free_cash_flow"))
+comparison_row("Free Cash Flow (TTM)", format_money, kpis_a.get("free_cash_flow"), kpis_b.get("free_cash_flow"))
+comparison_row("Cash Conversion", format_percent, kpis_a.get("fcf_margin"), kpis_b.get("fcf_margin"))
+
+# ---- Valuation ----
+# Comparing two companies on quality alone invites the conclusion that
+# the higher-scoring one is the better investment, which only holds if
+# they're priced similarly. These rows are the check on that.
+
+st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
+st.caption(
+    "Valuation - no winner is marked on these rows. A lower multiple is not "
+    "automatically better; it usually reflects lower expected growth, and a "
+    "negative P/E means there are no profits at all."
+)
+
+comparison_row("P/E (TTM)", format_ratio, market_a.get("trailing_pe"), market_b.get("trailing_pe"), higher_is_better=None)
+comparison_row("Forward P/E", format_ratio, market_a.get("forward_pe"), market_b.get("forward_pe"), higher_is_better=None)
+comparison_row("Price / Sales", format_ratio, market_a.get("price_to_sales"), market_b.get("price_to_sales"), higher_is_better=None)
+comparison_row("Dividend Yield", format_percent, market_a.get("dividend_yield"), market_b.get("dividend_yield"), higher_is_better=None)
+comparison_row("Market Cap", format_money, market_a.get("market_cap"), market_b.get("market_cap"), higher_is_better=None)
 
 
 # ==========================================================

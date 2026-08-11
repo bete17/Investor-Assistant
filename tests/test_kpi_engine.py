@@ -159,15 +159,16 @@ def test_earnings_growth_previous_zero_returns_none():
 
 
 def test_earnings_growth_negative_to_positive():
-    # Turning a loss into a profit should register as clearly
-    # positive growth, not blow up the math.
+    # Turning a loss into a profit is unambiguously good news, but the
+    # standard growth formula reports it as -200% off a negative base -
+    # which the dashboard then rendered as "earnings are declining".
+    # No sign convention fixes that, so we decline to state a
+    # percentage and describe the swing in words instead
+    # (see calculate_earnings_swing).
     income_statement = {
         "Net Income": {"2024-Q4": 100, "2024-Q3": -100},
     }
-    assert calculate_earnings_growth(income_statement) == -200.0
-    # This is a known quirk: (-100 -> +100) gives -200% under the
-    # standard growth formula when the prior value is negative.
-    # Keep it documented so it isn't changed accidentally.
+    assert calculate_earnings_growth(income_statement) is None
 
 
 # ----------------------------------------------------------
@@ -227,7 +228,7 @@ def test_roe_zero_equity_returns_none():
 # calculate_kpis (integration - mocks the network fetch)
 # ----------------------------------------------------------
 
-@patch("kpi_engine.fetch_company_financials")
+@patch("analytics.kpi_engine.fetch_company_financials")
 def test_calculate_kpis_returns_all_seven_metrics(mock_fetch):
     mock_fetch.return_value = {
         "income_statement": {
@@ -248,15 +249,19 @@ def test_calculate_kpis_returns_all_seven_metrics(mock_fetch):
 
     kpis = calculate_kpis("TEST")
 
-    expected_keys = {
+    # The seven headline metrics every page consumes. calculate_kpis
+    # also returns supporting keys (TTM totals, sequential growth,
+    # period bases) - asserting the headline set is present matters,
+    # asserting nothing else exists just makes the test brittle.
+    headline_keys = {
         "net_profit_margin", "debt_to_equity", "revenue_growth",
         "earnings_growth", "free_cash_flow", "current_ratio", "roe",
     }
-    assert set(kpis.keys()) == expected_keys
-    assert all(value is not None for value in kpis.values())
+    assert headline_keys <= set(kpis.keys())
+    assert all(kpis[key] is not None for key in headline_keys)
 
 
-@patch("kpi_engine.fetch_company_financials")
+@patch("analytics.kpi_engine.fetch_company_financials")
 def test_calculate_kpis_handles_fetch_failure(mock_fetch):
     # Fetcher returning empty/None (bad ticker, network issue) must
     # not crash the whole app - this is what protects your Discover

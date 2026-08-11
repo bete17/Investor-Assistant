@@ -29,10 +29,18 @@ if str(PROJECT_ROOT) not in sys.path:
 # ==========================================================
 
 from analytics.kpi_engine import calculate_kpis
-from analytics.health_score import calculate_health_score, get_score_label
+from analytics.health_score import (
+    calculate_health_score,
+    coverage_label,
+    explain_score,
+    get_score_label,
+)
 from analytics.sector_lookup import get_sector
+from analytics.valuation import build_valuation_reads, earnings_yield
+from analytics import watchlist as watchlist_store
 
 from data.financials_fetcher import fetch_company_financials
+from data.market_fetcher import fetch_market_snapshot
 from data.ticker_fetcher import find_valid_ticker
 from utils import (
     format_percent,
@@ -40,6 +48,14 @@ from utils import (
     format_money,
 )
 from skeletons import skeleton_card, skeleton_card_row, skeleton_chart
+from components import (
+    coverage_note,
+    driver_row,
+    price_header,
+    range_bar,
+    valuation_read,
+    valuation_stats,
+)
 
 
 # ==========================================================
@@ -84,6 +100,11 @@ def load_financials(ticker):
 @st.cache_data(ttl=3600, show_spinner=False)  # sector changes rarely, cache longer
 def load_sector(ticker):
     return get_sector(ticker)
+
+
+@st.cache_data(ttl=300, show_spinner=False)  # quotes go stale fast
+def load_market(ticker):
+    return fetch_market_snapshot(ticker)
 
 
 # ==========================================================
@@ -465,6 +486,12 @@ if "active_ticker" not in st.session_state:
     st.session_state.active_ticker = None
 
 
+def open_ticker(symbol):
+    """Switch the dashboard to a ticker and redraw."""
+    st.session_state.active_ticker = symbol
+    st.rerun()
+
+
 # ==========================================================
 # COMPANY SEARCH
 # ==========================================================
@@ -520,12 +547,38 @@ if not ticker:
     <div class="welcome-icon">↗</div>
     <div>
         <h3>Start your analysis</h3>
-        <p>Enter a stock ticker to explore financial KPIs, quarterly trends and automated financial insights.</p>
+        <p>Enter a stock ticker to explore financial KPIs, valuation multiples,
+        quarterly trends and automated financial insights.</p>
     </div>
 </div>
 """,
         unsafe_allow_html=True,
     )
+
+    # A returning user should land on their own list rather than an
+    # empty box. This is the whole point of the watchlist existing:
+    # without it, every visit starts from nothing and there's no
+    # reason to come back.
+    saved_tickers = watchlist_store.get_tickers()
+
+    if saved_tickers:
+        st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-label">YOUR WATCHLIST</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="watchlist-intro">Pick up where you left off.</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Fixed-width rows rather than one column per ticker, so a
+        # long list wraps instead of shrinking every button to nothing.
+        for start in range(0, len(saved_tickers), 6):
+            row = saved_tickers[start:start + 6]
+            columns = st.columns(6)
+
+            for column, symbol in zip(columns, row):
+                with column:
+                    if st.button(symbol, key=f"watch_open_{symbol}", use_container_width=True):
+                        open_ticker(symbol)
 
     st.stop()
 
@@ -565,6 +618,15 @@ with st.spinner(f"Analyzing {ticker}..."):
         # sector is None.
         sector = load_sector(ticker)
 
+        # Market data is a separate, shorter-lived fetch than the
+        # statements, and the fundamentals below are perfectly usable
+        # without it - so a failed quote degrades to an empty snapshot
+        # rather than taking the page down with it.
+        try:
+            market = load_market(ticker)
+        except Exception:  # noqa: BLE001 - yfinance raises many shapes
+            market = {}
+
     except Exception as error:
         loading_slot.empty()
         st.error(f"Unable to analyze {ticker}: {error}")
@@ -599,18 +661,19 @@ cash_flow = financial_data.get("cash_flow", {})
 # COMPANY OVERVIEW
 # ==========================================================
 
-st.markdown(
-    f"""
-<div class="company-header">
-    <div>
-        <div class="company-symbol">{html.escape(ticker)}</div>
-        <div class="company-subtitle">Fundamental financial overview</div>
-    </div>
-    <div class="analysis-badge">QUARTERLY ANALYSIS</div>
-</div>
-""",
-    unsafe_allow_html=True,
-)
+price_header(ticker, market, sector)
+
+# Watchlist toggle sits directly under the header, next to the thing
+# it applies to.
+watch_col, _ = st.columns([1, 4])
+
+with watch_col:
+    already_watched = watchlist_store.is_watched(ticker)
+    watch_label = "★  On watchlist" if already_watched else "☆  Add to watchlist"
+
+    if st.button(watch_label, key="watch_toggle", use_container_width=True):
+        watchlist_store.toggle_ticker(ticker)
+        st.rerun()
 
 
 # ==========================================================
@@ -624,60 +687,218 @@ st.markdown(
 
 score, score_breakdown = calculate_health_score(kpis, sector=sector)
 score_label, score_class = get_score_label(score)
+score_explanation = explain_score(score_breakdown)
 
 st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
 health_score_card(score, score_label, score_class, sector)
+
+# ---- What's actually driving the number ----
+# A single 0-100 figure is only worth anything if you can see where it
+# came from. The breakdown was already being computed here and thrown
+# away; this surfaces it.
+
+if score_explanation["strengths"] or score_explanation["drags"]:
+
+    coverage = score_explanation["coverage"]
+    coverage_text, coverage_class = coverage_label(coverage)
+
+    st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
+    coverage_note(coverage, coverage_text, coverage_class)
+
+    with st.expander("What's driving this score?", expanded=False):
+
+        st.caption(
+            "Each bar shows where the company sits within the range typical "
+            f"for {sector or 'the broader market'} on that metric - full bar "
+            "means the top of the range."
+        )
+
+        driver_col1, driver_col2 = st.columns(2)
+
+        with driver_col1:
+            st.markdown("##### Lifting the score")
+
+            if score_explanation["strengths"]:
+                for row in score_explanation["strengths"]:
+                    driver_row(row, "strength")
+            else:
+                st.caption("No metric scored above the middle of its sector range.")
+
+        with driver_col2:
+            st.markdown("##### Holding it back")
+
+            if score_explanation["drags"]:
+                for row in score_explanation["drags"]:
+                    driver_row(row, "drag")
+            else:
+                st.caption("No metric scored below the middle of its sector range.")
 
 
 # ==========================================================
 # KEY METRICS
 # ==========================================================
 
+# ==========================================================
+# VALUATION
+# ==========================================================
+# Everything above answers "is this a good business?". This answers
+# the other half - "is it priced like one?" - which is where the app
+# used to stop short. A high health score on an expensive stock is
+# not a buy signal, and without any price context a reader could
+# easily take it as one.
+
+valuation_reads = build_valuation_reads(market, sector=sector, kpis=kpis)
+
+if market or valuation_reads:
+
+    st.markdown('<div class="large-space"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">VALUATION</div>', unsafe_allow_html=True)
+    st.subheader("What the Market Is Paying")
+    st.caption(
+        "A strong company and a good investment are not the same thing - "
+        "quality is often already reflected in the price."
+    )
+
+    valuation_stats(market)
+
+    st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
+
+    trailing_pe = (market or {}).get("trailing_pe")
+    yield_percent = earnings_yield(trailing_pe)
+
+    if yield_percent is not None:
+        st.markdown(
+            f'<div class="basis-note">At {format_ratio(trailing_pe)}x trailing '
+            f"earnings, the company earns {format_percent(yield_percent)} a year "
+            f"per dollar invested if profits stay flat - the earnings yield. "
+            f"That is the figure to weigh against a bond or savings rate.</div>",
+            unsafe_allow_html=True,
+        )
+
+    read_col1, read_col2 = st.columns(2)
+
+    for index, read in enumerate(valuation_reads):
+        with read_col1 if index % 2 == 0 else read_col2:
+            valuation_read(read)
+
+    if market.get("fifty_two_week_high") is not None:
+        st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
+        range_bar(market)
+
+
+# ==========================================================
+# KEY METRICS
+# ==========================================================
+
+st.markdown('<div class="large-space"></div>', unsafe_allow_html=True)
 st.markdown('<div class="section-label">KEY METRICS</div>', unsafe_allow_html=True)
 st.subheader("Profitability & Growth")
+
+# Say plainly what period these numbers cover. The labels used to
+# imply a precision the underlying data didn't always support - and
+# when there isn't a year of history to compare against, a growth
+# figure means something materially different and should say so.
+growth_basis = kpis.get("revenue_growth_basis") or kpis.get("earnings_growth_basis")
+period_basis = kpis.get("period_basis")
+
+basis_parts = []
+
+if period_basis == "ttm":
+    basis_parts.append(
+        "Margin, return on equity and cash flow cover the trailing twelve "
+        "months (the last four reported quarters)."
+    )
+elif period_basis == "quarter":
+    basis_parts.append(
+        "Fewer than four quarters were available, so margin, return on equity "
+        "and cash flow reflect the latest quarter alone."
+    )
+
+if growth_basis == "yoy":
+    basis_parts.append(
+        "Growth compares the latest quarter with the same quarter a year "
+        "earlier, so seasonal swings don't distort it."
+    )
+elif growth_basis == "sequential":
+    basis_parts.append(
+        "There isn't a full year of history, so growth compares consecutive "
+        "quarters and may reflect seasonality rather than real momentum."
+    )
+
+if basis_parts:
+    st.markdown(
+        f'<div class="basis-note">{html.escape(" ".join(basis_parts))}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 # ==========================================================
 # FIRST KPI ROW
 # ==========================================================
 
+growth_suffix = "YoY" if growth_basis == "yoy" else "QoQ"
+
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     metric_card(
-        "NET PROFIT MARGIN",
+        "NET PROFIT MARGIN (TTM)",
         format_percent(kpis.get("net_profit_margin")),
         kpis.get("net_profit_margin"),
         "profit_margin",
-        "Percentage of revenue converted into net profit.",
+        "Share of revenue converted into net profit over the last twelve months.",
     )
 
 with col2:
     metric_card(
-        "RETURN ON EQUITY",
+        "RETURN ON EQUITY (TTM)",
         format_percent(kpis.get("roe")),
         kpis.get("roe"),
         "roe",
-        "Profit generated relative to shareholder equity.",
+        "Annual profit generated per dollar of average shareholder equity.",
     )
 
 with col3:
     metric_card(
-        "REVENUE GROWTH",
+        f"REVENUE GROWTH ({growth_suffix})",
         format_percent(kpis.get("revenue_growth")),
         kpis.get("revenue_growth"),
         "growth",
-        "Change in total revenue from the previous quarter.",
+        (
+            "Change in quarterly revenue versus the same quarter last year."
+            if growth_basis == "yoy"
+            else "Change in revenue from the previous quarter."
+        ),
     )
 
 with col4:
-    metric_card(
-        "EARNINGS GROWTH",
-        format_percent(kpis.get("earnings_growth")),
-        kpis.get("earnings_growth"),
-        "growth",
-        "Change in net income from the previous quarter.",
-    )
+    # A loss in the comparison period makes a percentage meaningless -
+    # a swing from loss to profit computes as -200% - so the card
+    # shows the swing in words instead of an inverted number.
+    earnings_swing = kpis.get("earnings_swing")
+    earnings_growth_value = kpis.get("earnings_growth")
+
+    if earnings_growth_value is None and earnings_swing:
+        metric_card(
+            f"EARNINGS GROWTH ({growth_suffix})",
+            "--",
+            None,
+            "growth",
+            f"{earnings_swing}. A percentage change off a loss would invert "
+            f"the meaning, so none is shown.",
+        )
+    else:
+        metric_card(
+            f"EARNINGS GROWTH ({growth_suffix})",
+            format_percent(earnings_growth_value),
+            earnings_growth_value,
+            "growth",
+            (
+                "Change in quarterly net income versus the same quarter last year."
+                if growth_basis == "yoy"
+                else "Change in net income from the previous quarter."
+            ),
+        )
 
 
 # ==========================================================
@@ -708,12 +929,25 @@ with health2:
     )
 
 with health3:
+    fcf_margin = kpis.get("fcf_margin")
+
+    # The dollar figure alone doesn't travel between companies -
+    # $2B is enormous for a mid-cap and unremarkable for a mega-cap -
+    # so pair it with the share of revenue it represents.
+    fcf_description = "Cash remaining after capital expenditures, last twelve months."
+
+    if fcf_margin is not None:
+        fcf_description = (
+            f"Cash left after capital expenditure over the last twelve months - "
+            f"{format_percent(fcf_margin)} of revenue."
+        )
+
     metric_card(
-        "FREE CASH FLOW",
+        "FREE CASH FLOW (TTM)",
         format_money(kpis.get("free_cash_flow")),
         kpis.get("free_cash_flow"),
         "cash_flow",
-        "Cash remaining after capital expenditures.",
+        fcf_description,
     )
 
 
@@ -809,8 +1043,19 @@ with chart2:
 
 st.markdown('<div class="large-space"></div>', unsafe_allow_html=True)
 st.markdown('<div class="section-label">GROWTH MOMENTUM</div>', unsafe_allow_html=True)
-st.subheader("Quarter-over-Quarter Growth")
-st.caption("Negative values indicate contraction; positive values indicate growth.")
+
+if growth_basis == "yoy":
+    st.subheader("Year-over-Year Growth")
+    st.caption(
+        "Latest quarter against the same quarter a year earlier. Negative "
+        "values indicate contraction; positive values indicate growth."
+    )
+else:
+    st.subheader("Quarter-over-Quarter Growth")
+    st.caption(
+        "Consecutive quarters, since a full year of history isn't available. "
+        "Seasonal businesses can look like they're shrinking on this basis."
+    )
 
 growth1, growth2 = st.columns(2)
 
@@ -819,6 +1064,29 @@ with growth1:
 
 with growth2:
     growth_bar("Earnings Growth", kpis.get("earnings_growth"))
+
+# Sequential growth is genuinely useful as a momentum read - it's
+# just not the headline, because seasonality dominates it. Shown as a
+# labelled supplement rather than hidden entirely.
+sequential_revenue = kpis.get("revenue_growth_qoq")
+sequential_earnings = kpis.get("earnings_growth_qoq")
+
+if growth_basis == "yoy" and (sequential_revenue is not None or sequential_earnings is not None):
+
+    with st.expander("Sequential (quarter-over-quarter) growth", expanded=False):
+        st.caption(
+            "Against the immediately preceding quarter. Useful for spotting a "
+            "turn early, but seasonal businesses swing hard here every year - "
+            "a retailer always contracts after the holidays."
+        )
+
+        sequential1, sequential2 = st.columns(2)
+
+        with sequential1:
+            growth_bar("Revenue (QoQ)", sequential_revenue)
+
+        with sequential2:
+            growth_bar("Earnings (QoQ)", sequential_earnings)
 
 
 # ==========================================================
@@ -869,6 +1137,15 @@ if net_margin is not None:
 
 
 # ---- Revenue growth ----
+# Phrased against whichever comparison was actually used. Saying "from
+# the previous quarter" when the figure is year-over-year (or the
+# reverse) would misdescribe the number sitting next to it.
+
+comparison_phrase = (
+    "from the same quarter a year earlier"
+    if growth_basis == "yoy"
+    else "from the previous quarter"
+)
 
 revenue_growth = kpis.get("revenue_growth")
 
@@ -878,27 +1155,28 @@ if revenue_growth is not None:
         insights.append((
             "positive",
             "Revenue is growing",
-            f"Revenue increased {format_percent(revenue_growth)} from the previous quarter.",
+            f"Revenue increased {format_percent(revenue_growth)} {comparison_phrase}.",
         ))
 
     elif revenue_growth < 0:
         insights.append((
             "negative",
             "Revenue is declining",
-            f"Revenue decreased {format_percent(abs(revenue_growth))} from the previous quarter.",
+            f"Revenue decreased {format_percent(abs(revenue_growth))} {comparison_phrase}.",
         ))
 
     else:
         insights.append((
             "neutral",
             "Revenue is flat",
-            "Revenue was approximately unchanged from the previous quarter.",
+            f"Revenue was approximately unchanged {comparison_phrase}.",
         ))
 
 
 # ---- Earnings growth ----
 
 earnings_growth = kpis.get("earnings_growth")
+earnings_swing_note = kpis.get("earnings_swing")
 
 if earnings_growth is not None:
 
@@ -906,22 +1184,38 @@ if earnings_growth is not None:
         insights.append((
             "positive",
             "Earnings are growing",
-            f"Net income increased {format_percent(earnings_growth)} from the previous quarter.",
+            f"Net income increased {format_percent(earnings_growth)} {comparison_phrase}.",
         ))
 
     elif earnings_growth < 0:
         insights.append((
             "negative",
             "Earnings are declining",
-            f"Net income decreased {format_percent(abs(earnings_growth))} from the previous quarter.",
+            f"Net income decreased {format_percent(abs(earnings_growth))} {comparison_phrase}.",
         ))
 
     else:
         insights.append((
             "neutral",
             "Earnings are flat",
-            "Net income was approximately unchanged from the previous quarter.",
+            f"Net income was approximately unchanged {comparison_phrase}.",
         ))
+
+elif earnings_swing_note:
+
+    # The comparison period was a loss, so a percentage would invert
+    # the meaning. Describe the direction instead of computing one.
+    swung_positive = earnings_swing_note in (
+        "Swung from a loss to a profit",
+        "Still lossmaking, but the loss narrowed",
+        "Turned profitable from a breakeven prior period",
+    )
+
+    insights.append((
+        "positive" if swung_positive else "negative",
+        "Earnings turned",
+        f"{earnings_swing_note} ({comparison_phrase}).",
+    ))
 
 
 # ---- Free cash flow ----
@@ -1021,35 +1315,43 @@ with st.expander("What do these KPIs mean?", expanded=False):
     with reference_col1:
         st.markdown(
             """
-### Net Profit Margin
+### Net Profit Margin (TTM)
 
-**Formula:** `Net Income / Revenue × 100`
+**Formula:** `TTM Net Income / TTM Revenue × 100`
 
-Measures how much of the company's revenue becomes net profit.
-
----
-
-### Return on Equity
-
-**Formula:** `Net Income / Stockholders' Equity × 100`
-
-Measures how efficiently shareholder equity generates profit.
+How much of each sales dollar becomes profit. TTM means trailing twelve
+months — the last four reported quarters summed, so a single unusual
+quarter doesn't dominate.
 
 ---
 
-### Revenue Growth
+### Return on Equity (TTM)
 
-**Formula:** `(Current Revenue - Previous Revenue) / Previous Revenue × 100`
+**Formula:** `TTM Net Income / Average Shareholders' Equity × 100`
 
-Measures quarter-over-quarter revenue change.
+How much annual profit the company generates per dollar of equity.
+Equity is averaged over the year because it's a point-in-time balance
+while profit accumulates over the period.
 
 ---
 
-### Earnings Growth
+### Revenue Growth (YoY)
 
-**Formula:** `(Current Net Income - Previous Net Income) / Previous Net Income × 100`
+**Formula:** `(This Quarter - Same Quarter Last Year) / Same Quarter Last Year × 100`
 
-Measures quarter-over-quarter net income change.
+Compared against the same quarter a year earlier rather than the previous
+quarter, because most businesses are seasonal — a retailer's sales always
+fall after the holidays, and that isn't a decline.
+
+---
+
+### Earnings Growth (YoY)
+
+**Formula:** `(This Quarter - Same Quarter Last Year) / Same Quarter Last Year × 100`
+
+No percentage is shown when the year-ago quarter was a loss: the standard
+formula reports a swing from loss to profit as *negative* growth, which
+inverts the meaning. The change is described in words instead.
 """
         )
 
@@ -1060,7 +1362,8 @@ Measures quarter-over-quarter net income change.
 
 **Formula:** `Total Debt / Stockholders' Equity`
 
-Measures financial leverage. Appropriate levels vary significantly by industry.
+Financial leverage. Appropriate levels vary significantly by industry —
+a utility carries debt a software company never would.
 
 ---
 
@@ -1068,17 +1371,31 @@ Measures financial leverage. Appropriate levels vary significantly by industry.
 
 **Formula:** `Current Assets / Current Liabilities`
 
-Measures the company's ability to meet short-term obligations.
+Whether the company can cover its next twelve months of obligations from
+assets it can convert to cash in that time.
 
 ---
 
-### Free Cash Flow
+### Free Cash Flow (TTM)
 
-**Formula:** `Operating Cash Flow + Capital Expenditure`
+**Formula:** `TTM Operating Cash Flow + TTM Capital Expenditure`
 
-Measures cash remaining after capital expenditures.
+Cash left over after the spending needed to maintain the business. Profit
+is an accounting opinion; cash flow is harder to massage.
 
-Yahoo Finance generally reports capital expenditure as a negative number.
+Yahoo Finance reports capital expenditure as a negative number, hence the
+addition.
+
+---
+
+### Price to Earnings
+
+**Formula:** `Share Price / Earnings Per Share`
+
+What the market pays for each dollar of profit. Only meaningful against
+a peer group — 25× is ordinary for software and expensive for a bank. A
+lossmaking company has no meaningful P/E, which is not the same as
+being cheap.
 """
         )
 

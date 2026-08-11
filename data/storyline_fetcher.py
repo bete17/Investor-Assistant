@@ -55,6 +55,18 @@ _MISSING_IDENTITY_MESSAGE = (
 _identity_configured = False
 
 
+def has_edgar_identity() -> bool:
+    """
+    True if EDGAR_IDENTITY is set to something usable.
+
+    Lets the UI ask the question without having to catch an exception,
+    so a missing identity can be presented as setup guidance rather
+    than a stack trace.
+    """
+    identity = os.getenv("EDGAR_IDENTITY")
+    return bool(identity and identity.strip())
+
+
 def _validate_edgar_identity() -> str:
     """Cheap check - no edgar import. Raises if EDGAR_IDENTITY is unusable."""
     identity = os.getenv("EDGAR_IDENTITY")
@@ -83,8 +95,21 @@ def _configure_edgar_identity() -> None:
     _identity_configured = True
 
 
-# Eager validation only - deliberately does NOT import edgar.
-_validate_edgar_identity()
+# NOTE: this module deliberately does NOT validate EDGAR_IDENTITY at
+# import time any more.
+#
+# It used to, so that a missing identity surfaced immediately rather
+# than after picking a ticker. But raising during import meant the
+# Storyline page died with a raw Python traceback before it could draw
+# anything - the first thing a new user saw after cloning the repo was
+# a stack trace, with the actual instructions buried inside it. It also
+# made the module unimportable in tests, which aborted collection for
+# the whole suite.
+#
+# The check hasn't gone away, it moved to where it can be handled:
+# _configure_edgar_identity() still raises before any network call, and
+# has_edgar_identity() lets the UI ask up front and render setup
+# guidance instead of an error.
 
 ITEM7_HEADER = re.compile(
     r"^\s*item\s*7[\.\:\-\s].*(?:management|discussion|analysis|md\s*&\s*a|financial\s+condition|results\s+of\s+operations)",

@@ -28,3 +28,15 @@ sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, ANALYTICS_FOLDER)
 sys.path.insert(0, UI_FOLDER)
 sys.path.insert(0, DATA_FOLDER)
+
+
+# storyline_fetcher.py validates EDGAR_IDENTITY at import time, by
+# design - the point is that you find out immediately rather than
+# after picking a ticker. But that also means importing it without the
+# variable set raises during test COLLECTION, which aborts the entire
+# run before any unrelated test gets a chance to execute.
+#
+# The storyline tests mock every network call, so no real request is
+# ever made with this placeholder. setdefault, not a plain assignment,
+# so a developer with a real identity configured keeps theirs.
+os.environ.setdefault("EDGAR_IDENTITY", "Test Runner tests@example.com")
