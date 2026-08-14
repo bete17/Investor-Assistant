@@ -37,10 +37,13 @@ from analytics.health_score import (
 )
 from analytics.sector_lookup import get_sector
 from analytics.valuation import build_valuation_reads, earnings_yield
+from analytics.change_engine import summarize as summarize_changes
+from analytics.change_engine import TRACKED_FIELDS
 from analytics import watchlist as watchlist_store
 
 from data.financials_fetcher import fetch_company_financials
 from data.market_fetcher import fetch_market_snapshot
+from data.snapshot_store import fetch_history
 from data.ticker_fetcher import find_valid_ticker
 from utils import (
     format_percent,
@@ -56,6 +59,7 @@ from components import (
     valuation_read,
     valuation_stats,
 )
+from change_panel import change_panel
 
 
 # ==========================================================
@@ -784,6 +788,39 @@ if market or valuation_reads:
     if market.get("fifty_two_week_high") is not None:
         st.markdown('<div class="section-spacer"></div>', unsafe_allow_html=True)
         range_bar(market)
+
+
+# ==========================================================
+# WHAT CHANGED
+# ==========================================================
+# Placed directly after Valuation because it reads the same numbers
+# from the other end. Valuation says what the market and its analysts
+# currently think; this says which way that thinking has been moving,
+# and both are more useful next to each other than apart.
+#
+# Everything above this point comes from a live fetch. This section is
+# the only part of the page that cannot be produced on demand - it is
+# built from observations recorded over past weeks, which is exactly
+# why it is worth having and why it will look sparse at first.
+
+st.markdown('<div class="large-space"></div>', unsafe_allow_html=True)
+st.markdown('<div class="section-label">REVISIONS</div>', unsafe_allow_html=True)
+st.subheader("What Changed")
+st.caption(
+    "Analysts are slow to move their estimates, so when they do - and "
+    "repeatedly in one direction - it is rarely noise."
+)
+
+# A database round trip on every page load would be wasteful for data
+# that changes at most once a day, so the read is cached. Keyed on the
+# ticker, and short enough that a snapshot recorded moments ago by the
+# fetch above still shows up within the same session.
+@st.cache_data(ttl=300, show_spinner=False)
+def _recorded_history(symbol):
+    return fetch_history(symbol)
+
+
+change_panel(summarize_changes(_recorded_history(ticker)), TRACKED_FIELDS)
 
 
 # ==========================================================

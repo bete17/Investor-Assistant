@@ -164,6 +164,76 @@ def earnings_yield(pe):
     return (1 / pe) * 100
 
 
+def classify_beta(beta):
+    """
+    Translate a stock's beta into a plain statement about how it has
+    historically moved relative to the broader market.
+
+    Beta is a pure descriptor, not a judgment - the way describe_range_
+    position never calls a 52-week low "bad". A beginner favoring calm
+    names and one deliberately chasing leveraged upside want opposite
+    answers from the same number, so every band here renders neutral
+    rather than positive/negative the way a margin does.
+
+    Returns (label, css_class, explanation).
+    """
+    if beta is None:
+        return (
+            "Not available",
+            "neutral",
+            "No volatility estimate is available for this company.",
+        )
+
+    magnitude = abs(beta - 1) * 100
+
+    if beta < 0:
+        return (
+            "Tends to move opposite the market",
+            "neutral",
+            f"With a beta of {beta:.2f}, this stock has historically moved "
+            f"against the broader market rather than with it - an unusual "
+            f"pattern, seen more often in gold miners or inverse funds than "
+            f"ordinary companies.",
+        )
+
+    if beta < 0.8:
+        return (
+            "Calmer than the market",
+            "neutral",
+            f"With a beta of {beta:.2f}, this stock has historically moved "
+            f"about {magnitude:.0f}% less than the S&P 500 in either "
+            f"direction - smaller gains in rallies, smaller losses in "
+            f"selloffs.",
+        )
+
+    if beta <= 1.2:
+        return (
+            "Moves with the market",
+            "neutral",
+            f"With a beta of {beta:.2f}, this stock has historically tracked "
+            f"the S&P 500 fairly closely.",
+        )
+
+    if beta <= 1.6:
+        return (
+            "More volatile than the market",
+            "neutral",
+            f"With a beta of {beta:.2f}, this stock has historically moved "
+            f"about {magnitude:.0f}% more than the S&P 500 in either "
+            f"direction - bigger gains in rallies, bigger losses in "
+            f"selloffs.",
+        )
+
+    return (
+        "Highly volatile",
+        "neutral",
+        f"With a beta of {beta:.2f}, this stock has historically swung "
+        f"roughly {beta:.1f}x as much as the market in either direction - "
+        f"sharp rallies and sharp drops both, more often than the typical "
+        f"stock.",
+    )
+
+
 def market_cap_tier(market_cap):
     """Conventional size label for a market capitalization."""
     if market_cap is None or market_cap <= 0:
@@ -330,6 +400,17 @@ def build_valuation_reads(snapshot, sector=None, kpis=None):
                 f"price. A high yield can reflect a generous payout or a falling "
                 f"share price, so it's worth checking which."
             ),
+        })
+
+    beta = snapshot.get("beta")
+
+    if beta is not None:
+        beta_label, beta_status, beta_explanation = classify_beta(beta)
+        reads.append({
+            "title": "Volatility (beta)",
+            "label": beta_label,
+            "status": beta_status,
+            "explanation": beta_explanation,
         })
 
     position = describe_range_position(snapshot.get("range_position"))

@@ -15,6 +15,7 @@ import pytest
 
 from analytics.valuation import (
     build_valuation_reads,
+    classify_beta,
     classify_pe,
     describe_range_position,
     earnings_yield,
@@ -162,6 +163,65 @@ def test_growth_adjusted_read_needs_both_inputs():
 
 
 # ----------------------------------------------------------
+# classify_beta
+# ----------------------------------------------------------
+
+def test_missing_beta_reports_unavailable():
+    label, status, _ = classify_beta(None)
+
+    assert label == "Not available"
+    assert status == "neutral"
+
+
+def test_beta_near_one_reads_as_moving_with_the_market():
+    label, status, _ = classify_beta(1.0)
+
+    assert label == "Moves with the market"
+    assert status == "neutral"
+
+
+def test_low_beta_reads_as_calmer_than_the_market():
+    label, status, explanation = classify_beta(0.6)
+
+    assert label == "Calmer than the market"
+    assert status == "neutral"
+    assert "40%" in explanation
+
+
+def test_high_beta_reads_as_more_volatile():
+    label, status, explanation = classify_beta(1.4)
+
+    assert label == "More volatile than the market"
+    assert status == "neutral"
+    assert "40%" in explanation
+
+
+def test_very_high_beta_reads_as_highly_volatile():
+    label, _, _ = classify_beta(2.0)
+
+    assert label == "Highly volatile"
+
+
+def test_negative_beta_reads_as_moving_opposite_the_market():
+    # Rare but real - some gold miners and inverse funds carry a
+    # negative beta, and the label should say so rather than treating
+    # it as an extreme case of "calmer than the market".
+    label, status, _ = classify_beta(-0.3)
+
+    assert label == "Tends to move opposite the market"
+    assert status == "neutral"
+
+
+def test_beta_status_is_never_a_value_judgment():
+    # Unlike a margin, volatility isn't inherently good or bad - it
+    # depends on what the reader wants, so no band should render as
+    # positive or negative.
+    for beta in (-1.0, 0.3, 0.9, 1.0, 1.4, 2.5):
+        _, status, _ = classify_beta(beta)
+        assert status == "neutral"
+
+
+# ----------------------------------------------------------
 # build_valuation_reads
 # ----------------------------------------------------------
 
@@ -230,3 +290,18 @@ def test_reit_pe_carries_an_ffo_caveat():
 def test_empty_snapshot_produces_no_reads():
     assert build_valuation_reads({}) == []
     assert build_valuation_reads(None) == []
+
+
+def test_beta_read_is_included_when_present():
+    snapshot = {"trailing_pe": 20.0, "beta": 1.4}
+    reads = build_valuation_reads(snapshot, sector="Technology")
+
+    beta_read = next(r for r in reads if r["title"] == "Volatility (beta)")
+    assert beta_read["label"] == "More volatile than the market"
+
+
+def test_beta_read_is_omitted_when_absent():
+    snapshot = {"trailing_pe": 20.0}
+    reads = build_valuation_reads(snapshot, sector="Technology")
+
+    assert "Volatility (beta)" not in [r["title"] for r in reads]

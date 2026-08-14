@@ -37,6 +37,7 @@ dependencies = [
     "urllib3==2.7.0",
     "websockets==16.1",
     "yfinance==1.5.1",
+    "psycopg2-binary>=2.9.12",
 ]
 
 [dependency-groups]

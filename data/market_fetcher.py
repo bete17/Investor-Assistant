@@ -53,6 +53,20 @@ _INFO_FIELDS = {
     "fifty_two_week_low": ("fiftyTwoWeekLow",),
     "shares_outstanding": ("sharesOutstanding",),
     "trailing_eps": ("trailingEps",),
+    # ------------------------------------------------------
+    # Fields kept for their history, not for today's value
+    # ------------------------------------------------------
+    # Everything above describes what a company is worth right now.
+    # These five describe what analysts currently expect of it, which
+    # is a different kind of number: it gets revised, and the
+    # revisions are the signal. yfinance only ever reports the
+    # current figure - there is no way to ask what a target price was
+    # last month - so snapshot_store writes these down as they pass.
+    "target_price": ("targetMeanPrice",),
+    "forward_eps": ("forwardEps",),
+    "recommendation": ("recommendationKey",),
+    "num_analysts": ("numberOfAnalystOpinions",),
+    "profit_margin": ("profitMargins",),
 }
 
 
@@ -95,7 +109,10 @@ def _first_available(info, keys):
     for key in keys:
         value = info.get(key)
 
-        if key in ("longName", "shortName", "currency"):
+        # recommendationKey is a label ("buy", "hold"), not a number,
+        # so it belongs with the other string fields - left out of
+        # this tuple it would fail _coerce_number and come back None.
+        if key in ("longName", "shortName", "currency", "recommendationKey"):
             if isinstance(value, str) and value.strip():
                 return value.strip()
             continue
@@ -232,6 +249,25 @@ def fetch_market_snapshot(ticker: str) -> dict:
             json.dump(snapshot, cache_file)
     except OSError:
         pass  # a cache write failure is not worth failing the request over
+
+    # Record the day's observation.
+    #
+    # This sits on the cache-miss path deliberately. A miss means
+    # these numbers were just fetched fresh, and once every fifteen
+    # minutes is already far more often than the one row a day the
+    # store keeps - so the same coverage costs a fraction of the
+    # writes that hooking _build_snapshot would.
+    #
+    # Imported lazily and failing silently for the same reason as the
+    # cache write above: recording history is a side effect, never the
+    # request the user is waiting on. An app with no database
+    # configured behaves exactly as it did before this existed.
+    try:
+        from data.snapshot_store import record_snapshot
+
+        record_snapshot(snapshot)
+    except Exception:  # noqa: BLE001 - import or driver, both non-fatal
+        pass
 
     return snapshot
 

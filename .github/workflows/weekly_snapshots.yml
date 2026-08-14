@@ -1,0 +1,34 @@
+name: Weekly snapshot
+
+# Monday 21:00 UTC - after the US close on Monday, so the week's
+# first session is settled and the figures aren't mid-session noise.
+# GitHub queues scheduled runs when the platform is busy, so treat
+# the time as approximate; nothing here depends on the minute.
+on:
+  schedule:
+    - cron: "0 21 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    # ~290 tickers with a 0.7s pause plus fetch time. The default
+    # 6-hour limit would let a hung run burn the month's minutes.
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Record snapshots
+        env:
+          INVESTOR_ASSISTANT_DATABASE_URL: ${{ secrets.INVESTOR_ASSISTANT_DATABASE_URL }}
+          # storyline_fetcher validates this at import time, and
+          # analytics/ imports reach it. No filings are fetched here.
+          EDGAR_IDENTITY: ${{ secrets.EDGAR_IDENTITY }}
+        run: uv run python weekly_snapshots.py
